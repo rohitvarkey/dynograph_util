@@ -1,4 +1,4 @@
-#include <dynograph_util.h>
+#include "dynograph_util.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
