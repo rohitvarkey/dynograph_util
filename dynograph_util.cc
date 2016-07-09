@@ -97,7 +97,7 @@ Dataset::loadEdgesBinary(string path)
          << directedStr
          << " edges from " << path << "...\n";
 
-    edges.reserve(numEdges);
+    edges.resize(numEdges);
 
     size_t rc = fread(&edges[0], sizeof(Edge), numEdges, fp);
     if (rc != numEdges)
@@ -119,7 +119,7 @@ Dataset::loadEdgesAscii(string path)
          << directedStr
          << " edges from " << path << "...\n";
 
-    edges.reserve(numEdges);
+    edges.resize(numEdges);
 
     FILE* fp = fopen(path.c_str(), "r");
     int rc = 0;
