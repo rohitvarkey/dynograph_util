@@ -46,7 +46,8 @@ Batch::end() { return end_iter; }
 
 // Implementation of DynoGraph::Dataset
 
-Dataset::Dataset(string path, int64_t numBatches)
+Dataset::Dataset(string _path, int64_t _numBatches)
+: path(_path), numBatches(_numBatches), directed(true)
 {
     // Sanity check
     if (numBatches < 1)
