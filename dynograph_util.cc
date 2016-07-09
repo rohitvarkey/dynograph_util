@@ -46,6 +46,14 @@ Batch::end() { return end_iter; }
 
 // Implementation of DynoGraph::Dataset
 
+// Helper function to test a string for a given suffix
+// http://stackoverflow.com/questions/20446201
+bool has_suffix(const std::string &str, const std::string &suffix)
+{
+    return str.size() >= suffix.size() &&
+           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 Dataset::Dataset(string _path, int64_t _numBatches)
 : path(_path), numBatches(_numBatches), directed(true)
 {
@@ -56,13 +64,15 @@ Dataset::Dataset(string _path, int64_t _numBatches)
         exit(-1);
     }
 
-    bool file_is_binary = false;
-    directed = true;
-    if (file_is_binary)
+    // Load edges from the file
+    if (has_suffix(path, ".graph.bin"))
     {
         loadEdgesBinary(path);
-    } else {
+    } else if (has_suffix(path, ".graph.el")) {
         loadEdgesAscii(path);
+    } else {
+        cerr << msg << "Unrecognized file extension for " << path << "\n";
+        exit(-1);
     }
 
     // Intentionally rounding down here
