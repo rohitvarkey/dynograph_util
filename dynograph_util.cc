@@ -54,8 +54,38 @@ bool has_suffix(const std::string &str, const std::string &suffix)
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-Dataset::Dataset(string _path, int64_t _numBatches)
-: path(_path), numBatches(_numBatches), directed(true)
+void Dataset::initBatchIterators()
+{
+    // Intentionally rounding down here
+    // TODO variable number of edges per batch
+    int64_t edgesPerBatch = edges.size() / numBatches;
+
+    // Store iterators to the beginning and end of each batch
+    for (int i = 0; i < numBatches; ++i)
+    {
+        size_t offset = i * edgesPerBatch;
+        auto begin = edges.begin() + offset;
+        auto end = edges.begin() + offset + edgesPerBatch;
+        batches.push_back(Batch(begin, end));
+    }
+}
+
+Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
+: numBatches(numBatches), directed(true), edges(edges)
+{
+    // Sanity check
+    if (numBatches < 1)
+    {
+        cerr << msg << "Need at least one batch\n";
+        exit(-1);
+    }
+
+    initBatchIterators();
+}
+
+
+Dataset::Dataset(string path, int64_t numBatches)
+: numBatches(numBatches), directed(true)
 {
     // Sanity check
     if (numBatches < 1)
@@ -75,19 +105,10 @@ Dataset::Dataset(string _path, int64_t _numBatches)
         exit(-1);
     }
 
-    // Intentionally rounding down here
-    // TODO variable number of edges per batch
-    int64_t edgesPerBatch = edges.size() / numBatches;
-
-    // Store iterators to the beginning and end of each batch
-    for (int i = 0; i < numBatches; ++i)
-    {
-        size_t offset = i * edgesPerBatch;
-        auto begin = edges.begin() + offset;
-        auto end = edges.begin() + offset + edgesPerBatch;
-        batches.push_back(Batch(begin, end));
-    }
+    initBatchIterators();
 }
+
+
 
 void
 Dataset::loadEdgesBinary(string path)

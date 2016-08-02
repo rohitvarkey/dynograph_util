@@ -28,16 +28,17 @@ public:
 class Dataset
 {
 private:
-    const std::string path;
+    void loadEdgesBinary(std::string path);
+    void loadEdgesAscii(std::string path);
+    void initBatchIterators();
+public:
     const int64_t numBatches;
     const int64_t directed;
     std::vector<Edge> edges;
     std::vector<Batch> batches;
 
-    void loadEdgesBinary(std::string path);
-    void loadEdgesAscii(std::string path);
-public:
-    Dataset(std::string _path, int64_t _numBatches);
+    Dataset(std::string path, int64_t numBatches);
+    Dataset(std::vector<Edge> edges, int64_t numBatches);
     int64_t getTimestampForWindow(int64_t batchId, int64_t windowSize);
     Batch getBatch(int64_t batchId);
     int64_t getNumBatches();
