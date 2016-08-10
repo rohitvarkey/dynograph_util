@@ -8,8 +8,6 @@ using namespace DynoGraph;
 using std::cerr;
 using std::string;
 
-const string msg = "[DynoGraph] ";
-
 // Count the number of lines in a text file
 int64_t
 count_lines(string path)

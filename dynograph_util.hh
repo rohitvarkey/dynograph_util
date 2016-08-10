@@ -6,6 +6,8 @@
 
 namespace DynoGraph {
 
+const std::string msg = "[DynoGraph] ";
+
 struct Edge
 {
     int64_t src;
