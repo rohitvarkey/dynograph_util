@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
     }
 
     // Sort the edge list
-    std::sort(edges.begin(), edges.end(), [](const Edge& a, const Edge& b) { return a.src < b.src; });
+    std::sort(edges.begin(), edges.end());
 
     // Write to stdout
     fwrite(&edges[0], sizeof(Edge), edges.size(), stdout);
