@@ -8,6 +8,23 @@ using namespace DynoGraph;
 using std::cerr;
 using std::string;
 
+bool operator<(const Edge& a, const Edge& b)
+{
+    // Sort by src, dst, timestamp, weight
+    return (a.src != b.src) ? a.src < b.src
+         : (a.dst != b.dst) ? a.dst < b.dst
+         : (a.timestamp != b.timestamp) ? a.timestamp < b.timestamp
+         : (a.weight != b.weight) ? a.weight < b.weight
+         : false;
+}
+bool operator==(const Edge& a, const Edge& b)
+{
+    return a.src == b.src
+        && a.dst == b.dst
+        && a.weight == b.weight
+        && a.timestamp == b.timestamp;
+}
+
 // Count the number of lines in a text file
 int64_t
 count_lines(string path)
