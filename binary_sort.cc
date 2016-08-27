@@ -1,11 +1,7 @@
 #include <iostream>
 #include <vector>
-#include <algorithm>
+#include <parallel/algorithm>
 #include "dynograph_util.hh"
-using std::cout;
-using std::cerr;
-using std::vector;
-using std::sort;
 
 using namespace DynoGraph;
 
@@ -16,7 +12,7 @@ int main(int argc, char *argv[])
 
     // Reserve space for the edge list
     // We don't know how much space we'll need, so just guess and resize as necessary
-    vector<Edge> edges;
+    std::vector<Edge> edges;
     edges.reserve(1024 * 1024);
     Edge e;
 
