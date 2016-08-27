@@ -12,3 +12,8 @@ add_executable(sort_bin "binary_sort.cc")
 target_link_libraries(sort_bin dynograph_util)
 # Enable parallel versions of std algorithms
 target_compile_definitions(sort_bin PUBLIC _GLIBCXX_PARALLEL)
+
+add_executable(dedup_bin "binary_dedup.cc")
+target_link_libraries(dedup_bin dynograph_util)
+# Enable parallel versions of std algorithms
+target_compile_definitions(dedup_bin PUBLIC _GLIBCXX_PARALLEL)
