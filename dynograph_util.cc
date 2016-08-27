@@ -8,7 +8,7 @@ using namespace DynoGraph;
 using std::cerr;
 using std::string;
 
-bool operator<(const Edge& a, const Edge& b)
+bool DynoGraph::operator<(const Edge& a, const Edge& b)
 {
     // Sort by src, dst, timestamp, weight
     return (a.src != b.src) ? a.src < b.src
@@ -17,7 +17,7 @@ bool operator<(const Edge& a, const Edge& b)
          : (a.weight != b.weight) ? a.weight < b.weight
          : false;
 }
-bool operator==(const Edge& a, const Edge& b)
+bool DynoGraph::operator==(const Edge& a, const Edge& b)
 {
     return a.src == b.src
         && a.dst == b.dst

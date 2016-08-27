@@ -16,6 +16,9 @@ struct Edge
     int64_t timestamp;
 };
 
+bool operator<(const Edge& a, const Edge& b);
+bool operator==(const Edge& a, const Edge& b);
+
 class Batch
 {
 private:
