@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 
     // Deduplicate the edge list
     // Using std::unique_copy since there is no parallel version of std::unique
-    std::unique_copy(edges.begin(), edges.end(), deduped_edges.begin(),
+    std::unique_copy(edges.begin(), edges.end(), std::back_inserter(deduped_edges),
         // We consider only source and dest when searching for duplicates
         // The input is sorted, so we'll only get the most recent timestamp
         // BUG: Does not combine weights
