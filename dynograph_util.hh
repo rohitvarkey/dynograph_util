@@ -3,7 +3,7 @@
 #include <inttypes.h>
 #include <vector>
 #include <string>
-#include <memory>
+#include <random>
 
 namespace DynoGraph {
 
@@ -31,6 +31,18 @@ public:
     Batch(iterator begin, iterator end);
 };
 
+class VertexPicker
+{
+public:
+    VertexPicker(uint64_t nv, uint64_t seed);
+    uint64_t next();
+private:
+    std::uniform_int_distribution<uint64_t> distribution;
+    // Use a 64-bit Mersene Twister for random number generation
+    typedef std::mt19937_64 random_number_generator;
+    random_number_generator generator;
+};
+
 class Dataset
 {
 private:
@@ -42,8 +54,6 @@ private:
     int64_t directed;
     int64_t maxNumVertices;
 
-    class RandomStream;
-    std::shared_ptr<RandomStream> vertexPicker;
 public:
 
     std::vector<Edge> edges;
@@ -52,7 +62,6 @@ public:
     Dataset(std::string path, int64_t numBatches);
     Dataset(std::vector<Edge> edges, int64_t numBatches);
     int64_t getTimestampForWindow(int64_t batchId, int64_t windowSize);
-    int64_t getRandomVertex();
     Batch getBatch(int64_t batchId);
 
     int64_t getNumBatches();

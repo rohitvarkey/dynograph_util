@@ -2,14 +2,11 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <iostream>
-#include <random>
-#include <assert.h>
 #include "dynograph_util.hh"
 
 using namespace DynoGraph;
 using std::cerr;
 using std::string;
-using std::make_shared;
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
 {
@@ -113,7 +110,6 @@ Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
 
     initBatchIterators();
     maxNumVertices = getMaxVertexId(edges);
-    vertexPicker = make_shared<RandomStream>(0, maxNumVertices, 0);
 }
 
 
@@ -141,7 +137,6 @@ Dataset::Dataset(string path, int64_t numBatches)
     initBatchIterators();
     // Could save work by counting max vertex id while loading edges, but easier to just do it here
     maxNumVertices = getMaxVertexId(edges);
-    vertexPicker = make_shared<RandomStream>(0, maxNumVertices, 0);
 }
 
 void
@@ -195,25 +190,11 @@ Dataset::loadEdgesAscii(string path)
     fclose(fp);
 }
 
-class Dataset::RandomStream
-{
-public:
-    RandomStream(uint64_t min, uint64_t max, uint64_t seed)
-    : distribution(min, max), generator(seed) {}
-    uint64_t next() { return distribution(generator); }
-private:
-    std::uniform_int_distribution<uint64_t> distribution;
-    // Use a 64-bit Mersene Twister for random number generation
-    typedef std::mt19937_64 random_number_generator;
-    random_number_generator generator;
-};
+VertexPicker::VertexPicker(uint64_t nv, uint64_t seed)
+: distribution(0, nv), generator(seed) {}
 
-int64_t
-Dataset::getRandomVertex()
-{
-    assert(vertexPicker != nullptr);
-    return vertexPicker->next();
-}
+uint64_t
+VertexPicker::next() { return distribution(generator); }
 
 int64_t
 Dataset::getTimestampForWindow(int64_t batchId, int64_t windowSize)
