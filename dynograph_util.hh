@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <vector>
 #include <string>
+#include <memory>
 
 namespace DynoGraph {
 
@@ -36,17 +37,28 @@ private:
     void loadEdgesBinary(std::string path);
     void loadEdgesAscii(std::string path);
     void initBatchIterators();
+
+    int64_t numBatches;
+    int64_t directed;
+    int64_t maxNumVertices;
+
+    class RandomStream;
+    std::shared_ptr<RandomStream> vertexPicker;
 public:
-    const int64_t numBatches;
-    const int64_t directed;
+
     std::vector<Edge> edges;
     std::vector<Batch> batches;
 
     Dataset(std::string path, int64_t numBatches);
     Dataset(std::vector<Edge> edges, int64_t numBatches);
     int64_t getTimestampForWindow(int64_t batchId, int64_t windowSize);
+    int64_t getRandomVertex();
     Batch getBatch(int64_t batchId);
+
     int64_t getNumBatches();
+    bool isDirected();
+    int64_t getMaxNumVertices();
+
     std::vector<Batch>::iterator begin();
     std::vector<Batch>::iterator end();
 };

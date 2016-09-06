@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <iostream>
+#include <random>
+#include <assert.h>
 #include "dynograph_util.hh"
 
 using namespace DynoGraph;
 using std::cerr;
 using std::string;
+using std::make_shared;
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
 {
@@ -85,6 +88,19 @@ void Dataset::initBatchIterators()
     }
 }
 
+int64_t getMaxVertexId(std::vector<Edge> &edges)
+{
+    int64_t max_nv = 0;
+    #pragma omp parallel for reduction (max : max_nv)
+    for (size_t i = 0; i < edges.size(); ++i)
+    {
+        Edge &e = edges[i];
+        if (e.src > max_nv) { max_nv = e.src; }
+        if (e.dst > max_nv) { max_nv = e.dst; }
+    }
+    return max_nv;
+}
+
 Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
 : numBatches(numBatches), directed(true), edges(edges)
 {
@@ -96,6 +112,8 @@ Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
     }
 
     initBatchIterators();
+    maxNumVertices = getMaxVertexId(edges);
+    vertexPicker = make_shared<RandomStream>(0, maxNumVertices, 0);
 }
 
 
@@ -121,9 +139,10 @@ Dataset::Dataset(string path, int64_t numBatches)
     }
 
     initBatchIterators();
+    // Could save work by counting max vertex id while loading edges, but easier to just do it here
+    maxNumVertices = getMaxVertexId(edges);
+    vertexPicker = make_shared<RandomStream>(0, maxNumVertices, 0);
 }
-
-
 
 void
 Dataset::loadEdgesBinary(string path)
@@ -176,6 +195,25 @@ Dataset::loadEdgesAscii(string path)
     fclose(fp);
 }
 
+class Dataset::RandomStream
+{
+public:
+    RandomStream(uint64_t min, uint64_t max, uint64_t seed)
+    : distribution(min, max), generator(seed) {}
+    uint64_t next() { return distribution(generator); }
+private:
+    std::uniform_int_distribution<uint64_t> distribution;
+    // Use a 64-bit Mersene Twister for random number generation
+    typedef std::mt19937_64 random_number_generator;
+    random_number_generator generator;
+};
+
+int64_t
+Dataset::getRandomVertex()
+{
+    assert(vertexPicker != nullptr);
+    return vertexPicker->next();
+}
 
 int64_t
 Dataset::getTimestampForWindow(int64_t batchId, int64_t windowSize)
@@ -196,6 +234,18 @@ Batch
 Dataset::getBatch(int64_t batchId)
 {
     return batches[batchId];
+}
+
+bool
+Dataset::isDirected()
+{
+    return directed;
+}
+
+int64_t
+Dataset::getMaxNumVertices()
+{
+    return maxNumVertices;
 }
 
 int64_t
