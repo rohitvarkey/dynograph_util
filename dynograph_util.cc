@@ -191,10 +191,13 @@ Dataset::loadEdgesAscii(string path)
 }
 
 VertexPicker::VertexPicker(int64_t nv, int64_t seed)
-: distribution(0, nv), generator(seed) {}
+: distribution(0, nv), generator(seed), seed(seed) {}
 
 int64_t
 VertexPicker::next() { return distribution(generator); }
+
+void
+VertexPicker::reset() { generator.seed(seed); }
 
 int64_t
 Dataset::getTimestampForWindow(int64_t batchId, int64_t windowSize)

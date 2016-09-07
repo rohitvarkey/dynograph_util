@@ -36,7 +36,9 @@ class VertexPicker
 public:
     VertexPicker(int64_t nv, int64_t seed);
     int64_t next();
+    void reset();
 private:
+    int64_t seed;
     std::uniform_int_distribution<int64_t> distribution;
     // Use a 64-bit Mersene Twister for random number generation
     typedef std::mt19937_64 random_number_generator;
