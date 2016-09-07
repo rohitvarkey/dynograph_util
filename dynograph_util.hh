@@ -34,10 +34,10 @@ public:
 class VertexPicker
 {
 public:
-    VertexPicker(uint64_t nv, uint64_t seed);
-    uint64_t next();
+    VertexPicker(int64_t nv, int64_t seed);
+    int64_t next();
 private:
-    std::uniform_int_distribution<uint64_t> distribution;
+    std::uniform_int_distribution<int64_t> distribution;
     // Use a 64-bit Mersene Twister for random number generation
     typedef std::mt19937_64 random_number_generator;
     random_number_generator generator;

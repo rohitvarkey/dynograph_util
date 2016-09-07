@@ -190,10 +190,10 @@ Dataset::loadEdgesAscii(string path)
     fclose(fp);
 }
 
-VertexPicker::VertexPicker(uint64_t nv, uint64_t seed)
+VertexPicker::VertexPicker(int64_t nv, int64_t seed)
 : distribution(0, nv), generator(seed) {}
 
-uint64_t
+int64_t
 VertexPicker::next() { return distribution(generator); }
 
 int64_t
