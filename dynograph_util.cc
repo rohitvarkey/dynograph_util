@@ -194,7 +194,14 @@ VertexPicker::VertexPicker(int64_t nv, int64_t seed)
 : distribution(0, nv-1), generator(seed), seed(seed) {}
 
 int64_t
-VertexPicker::next() { return distribution(generator); }
+VertexPicker::next() {
+    int64_t value = distribution(generator);
+#ifndef NDEBUG
+    cerr << msg << "picking vertex " << value
+         << " from range [" << distribution.a() << "," << distribution.b() << "]\n";
+#endif
+    return value;
+}
 
 void
 VertexPicker::reset() { generator.seed(seed); }
