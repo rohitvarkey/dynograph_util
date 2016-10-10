@@ -2,7 +2,21 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <iostream>
+#include <assert.h>
 #include "dynograph_util.hh"
+
+/*
+ * HACK
+ *   This must be set to larger than the largest vertex ID that DynoGraph will ever see
+ * Rationale:
+ *   For a given graph, VertexPicker should always return the same sequence of vertex ID's.
+ *   This includes "static" experiments, where dynograph_util loads a pre-processed subset of the graph
+ *   and would see a different max_nv than the dynamic version.
+ *
+ *   Long term, dynograph_util should always load the entire dataset and produce "static" versions at runtime.
+ *   For now, we will use an oversized distribution range and iterate until we get a valid vertex ID.
+ */
+#define VERTEX_PICKER_RANGE_MAX (1LL << 30)
 
 using namespace DynoGraph;
 using std::cerr;
@@ -95,6 +109,7 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
         if (e.src > max_nv) { max_nv = e.src; }
         if (e.dst > max_nv) { max_nv = e.dst; }
     }
+    assert(max_nv < VERTEX_PICKER_RANGE_MAX);
     return max_nv;
 }
 
@@ -204,11 +219,14 @@ Dataset::loadEdgesAscii(string path)
 }
 
 VertexPicker::VertexPicker(int64_t nv, int64_t seed)
-: seed(seed), distribution(0, nv-1), generator(seed) {}
+: seed(seed), max_nv(nv), distribution(0, VERTEX_PICKER_RANGE_MAX), generator(seed) {}
 
 int64_t
 VertexPicker::next() {
-    int64_t value = distribution(generator);
+    int64_t value;
+    do { value = distribution(generator); }
+    while (value >= max_nv);
+
 #ifndef NDEBUG
     cerr << msg << "picking vertex " << value
          << " from range [" << distribution.a() << "," << distribution.b() << "]\n";
