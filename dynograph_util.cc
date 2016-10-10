@@ -98,6 +98,19 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
     return max_nv;
 }
 
+Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches, int64_t maxNumVertices)
+        : numBatches(numBatches), directed(true), edges(edges), maxNumVertices(maxNumVertices)
+{
+    // Sanity check
+    if (numBatches < 1)
+    {
+        cerr << msg << "Need at least one batch\n";
+        exit(-1);
+    }
+
+    initBatchIterators();
+}
+
 Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
 : numBatches(numBatches), directed(true), edges(edges)
 {

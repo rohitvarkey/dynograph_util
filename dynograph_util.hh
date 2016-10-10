@@ -62,6 +62,7 @@ public:
     std::vector<Batch> batches;
 
     Dataset(std::string path, int64_t numBatches);
+    Dataset(std::vector<Edge> edges, int64_t numBatches, int64_t maxNumVertices);
     Dataset(std::vector<Edge> edges, int64_t numBatches);
     int64_t getTimestampForWindow(int64_t batchId, int64_t windowSize);
     Batch getBatch(int64_t batchId);
