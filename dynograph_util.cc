@@ -99,7 +99,7 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
 }
 
 Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches, int64_t maxNumVertices)
-        : numBatches(numBatches), directed(true), edges(edges), maxNumVertices(maxNumVertices)
+        : numBatches(numBatches), directed(true), maxNumVertices(maxNumVertices), edges(edges)
 {
     // Sanity check
     if (numBatches < 1)
@@ -173,7 +173,7 @@ Dataset::loadEdgesBinary(string path)
     edges.resize(numEdges);
 
     size_t rc = fread(&edges[0], sizeof(Edge), numEdges, fp);
-    if (rc != numEdges)
+    if (rc != static_cast<size_t>(numEdges))
     {
         cerr << msg << "Failed to load graph from " << path << "\n";
         exit(-1);
@@ -204,7 +204,7 @@ Dataset::loadEdgesAscii(string path)
 }
 
 VertexPicker::VertexPicker(int64_t nv, int64_t seed)
-: distribution(0, nv-1), generator(seed), seed(seed) {}
+: seed(seed), distribution(0, nv-1), generator(seed) {}
 
 int64_t
 VertexPicker::next() {
