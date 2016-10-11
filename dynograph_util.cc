@@ -137,7 +137,7 @@ Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
     }
 
     initBatchIterators();
-    maxNumVertices = getMaxVertexId(edges);
+    maxNumVertices = getMaxVertexId(edges) + 1;
 }
 
 
@@ -164,7 +164,7 @@ Dataset::Dataset(string path, int64_t numBatches)
 
     initBatchIterators();
     // Could save work by counting max vertex id while loading edges, but easier to just do it here
-    maxNumVertices = getMaxVertexId(edges);
+    maxNumVertices = getMaxVertexId(edges) + 1;
 }
 
 void
