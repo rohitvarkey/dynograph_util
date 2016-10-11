@@ -5,6 +5,10 @@
 #include <assert.h>
 #include "dynograph_util.hh"
 
+using namespace DynoGraph;
+using std::cerr;
+using std::string;
+
 /*
  * HACK
  *   This must be set to larger than the largest vertex ID that DynoGraph will ever see
@@ -16,11 +20,23 @@
  *   Long term, dynograph_util should always load the entire dataset and produce "static" versions at runtime.
  *   For now, we will use an oversized distribution range and iterate until we get a valid vertex ID.
  */
-#define VERTEX_PICKER_RANGE_MAX (1LL << 30)
 
-using namespace DynoGraph;
-using std::cerr;
-using std::string;
+int64_t
+get_vertex_picker_range_max()
+{
+    static int64_t rv = 0;
+    if (rv != 0) return rv;
+
+    if (char * s = getenv("VERTEX_PICKER_RANGE_MAX"))
+    {
+        rv = atoll(s);
+    } else {
+        rv = 1LL << 30;
+        cerr << msg << "WARNING: VertexPicker max range unset, set VERTEX_PICKER_RANGE_MAX\n";
+        cerr << msg << "Defaulting to " << rv << "\n";
+    }
+    return rv;
+}
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
 {
@@ -109,7 +125,7 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
         if (e.src > max_nv) { max_nv = e.src; }
         if (e.dst > max_nv) { max_nv = e.dst; }
     }
-    assert(max_nv < VERTEX_PICKER_RANGE_MAX);
+    assert(max_nv < get_vertex_picker_range_max());
     return max_nv;
 }
 
@@ -219,7 +235,7 @@ Dataset::loadEdgesAscii(string path)
 }
 
 VertexPicker::VertexPicker(int64_t nv, int64_t seed)
-: seed(seed), max_nv(nv), distribution(0, VERTEX_PICKER_RANGE_MAX), generator(seed) {}
+: seed(seed), max_nv(nv), distribution(0, get_vertex_picker_range_max()), generator(seed) {}
 
 int64_t
 VertexPicker::next() {
