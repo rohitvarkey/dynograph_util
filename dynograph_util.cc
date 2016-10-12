@@ -46,26 +46,31 @@ Args::Args(int argc, char **argv)
 {
     if (argc != 6)
     {
-        cerr << "Usage: alg_name input_path num_batches window_size num_trials \n";
+        cerr << msg << "Usage: alg_name sort_mode input_path num_batches window_size num_trials \n";
         exit(-1);
     }
 
     alg_name = argv[1];
-    input_path = argv[2];
-    num_batches = atoll(argv[3]);
-    window_size = atoll(argv[4]);
-    num_trials = atoll(argv[5]);
-    if (window_size == num_batches)
-    {
-        enable_deletions = 0;
-    } else {
-        enable_deletions = 1;
-    }
+    std::string sort_mode_str = argv[2];
+    input_path = argv[3];
+    num_batches = atoll(argv[4]);
+    window_size = atoll(argv[5]);
+    num_trials = atoll(argv[6]);
+
     if (num_batches < 1 || window_size < 1 || num_trials < 1)
     {
-        cerr << "num_batches, window_size, and num_trials must be positive\n";
+        cerr << msg << "num_batches, window_size, and num_trials must be positive\n";
         exit(-1);
     }
+
+    if      (sort_mode_str == "unsorted") { sort_mode = UNSORTED; }
+    else if (sort_mode_str == "presort")  { sort_mode = PRESORT;  }
+    else if (sort_mode_str == "snapshot") { sort_mode = SNAPSHOT; }
+    else {
+        cerr << msg << "sort_mode must be one of ['unsorted', 'presort', 'snapshot']\n";
+        exit(-1);
+    }
+
 }
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
@@ -307,13 +312,27 @@ std::unique_ptr<T> make_unique( Args&& ...args )
 unique_ptr<Batch>
 Dataset::getBatch(int64_t batchId)
 {
-    return make_unique<Batch>(batches[batchId]);
-}
-
-unique_ptr<Batch>
-Dataset::getCumulativeBatch(int64_t batchId)
-{
-    return make_unique<Batch>(edges.begin(), batches[batchId].end());
+    Batch & b = batches[batchId];
+    switch (args.sort_mode)
+    {
+        case Args::UNSORTED:
+        {
+            return make_unique<Batch>(b);
+        }
+        case Args::PRESORT:
+        {
+            return make_unique<DeduplicatedBatch>(b);
+        }
+        case Args::SNAPSHOT:
+        {
+            int64_t threshold = getTimestampForWindow(batchId);
+            auto start = std::find_if(edges.begin(), b.end(),
+                [threshold](const Edge& e){ return e.timestamp >= threshold; });
+            Batch filtered(start, b.end());
+            return make_unique<DeduplicatedBatch>(filtered);
+        }
+        default: assert(0);
+    }
 }
 
 bool

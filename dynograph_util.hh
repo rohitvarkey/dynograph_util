@@ -14,6 +14,14 @@ struct Args
 {
     std::string alg_name;
     std::string input_path;
+    enum SORT_MODE {
+        // Do not pre-sort batches
+        UNSORTED,
+        // Sort and deduplicate each batch before returning it
+        PRESORT,
+        // Each batch is a cumulative snapshot of all edges in previous batches
+        SNAPSHOT
+    } sort_mode;
     int64_t window_size;
     int64_t num_batches;
     int64_t num_trials;
@@ -87,9 +95,7 @@ public:
     Dataset(std::vector<Edge> edges, Dataset &other);
 
     int64_t getTimestampForWindow(int64_t batchId);
-
     std::unique_ptr<Batch> getBatch(int64_t batchId);
-    std::unique_ptr<Batch> getCumulativeBatch(int64_t batchId);
 
     bool isDirected();
     int64_t getMaxNumVertices();
