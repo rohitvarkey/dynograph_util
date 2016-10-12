@@ -4,12 +4,14 @@
 #include <iostream>
 #include <assert.h>
 #include <parallel/algorithm>
+
 #include "dynograph_util.hh"
 
 using namespace DynoGraph;
 using std::cerr;
 using std::string;
 using std::vector;
+using std::unique_ptr;
 
 /*
  * HACK
@@ -158,10 +160,10 @@ void Dataset::initBatchIterators()
 {
     // Intentionally rounding down here
     // TODO variable number of edges per batch
-    int64_t edgesPerBatch = edges.size() / numBatches;
+    int64_t edgesPerBatch = edges.size() / args.num_batches;
 
     // Store iterators to the beginning and end of each batch
-    for (int i = 0; i < numBatches; ++i)
+    for (int i = 0; i < args.num_batches; ++i)
     {
         size_t offset = i * edgesPerBatch;
         auto begin = edges.begin() + offset;
@@ -184,44 +186,16 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
     return max_nv;
 }
 
-Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches, int64_t maxNumVertices)
-        : numBatches(numBatches), directed(true), maxNumVertices(maxNumVertices), edges(edges)
+// This version is only used by Boost right now, to create a smaller dataset from a bigger one
+Dataset::Dataset(std::vector<Edge> edges, Dataset &other)
+: args(other.args), directed(other.directed), maxNumVertices(other.maxNumVertices), edges(edges)
 {
-    // Sanity check
-    if (numBatches < 1)
-    {
-        cerr << msg << "Need at least one batch\n";
-        exit(-1);
-    }
-
     initBatchIterators();
 }
-
-Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
-: numBatches(numBatches), directed(true), edges(edges)
-{
-    // Sanity check
-    if (numBatches < 1)
-    {
-        cerr << msg << "Need at least one batch\n";
-        exit(-1);
-    }
-
-    initBatchIterators();
-    maxNumVertices = getMaxVertexId(edges) + 1;
-}
-
 
 Dataset::Dataset(Args args)
-: numBatches(args.num_batches), directed(true)
+: args(args), directed(true)
 {
-    // Sanity check
-    if (numBatches < 1)
-    {
-        cerr << msg << "Need at least one batch\n";
-        exit(-1);
-    }
-
     // Load edges from the file
     if (has_suffix(args.input_path, ".graph.bin"))
     {
@@ -309,24 +283,37 @@ void
 VertexPicker::reset() { generator.seed(seed); }
 
 int64_t
-Dataset::getTimestampForWindow(int64_t batchId, int64_t windowSize)
+Dataset::getTimestampForWindow(int64_t batchId)
 {
     int64_t modifiedAfter = INT64_MIN;
-    if (batchId > windowSize)
+    if (batchId > args.window_size)
     {
         // Intentionally rounding down here
         // TODO variable number of edges per batch
         int64_t edgesPerBatch = edges.size() / batches.size();
-        int64_t startEdge = (batchId - windowSize) * edgesPerBatch;
+        int64_t startEdge = (batchId - args.window_size) * edgesPerBatch;
         modifiedAfter = edges[startEdge].timestamp;
     }
     return modifiedAfter;
 };
 
-Batch
+
+template<typename T, typename ...Args>
+std::unique_ptr<T> make_unique( Args&& ...args )
+{
+    return std::unique_ptr<T>( new T( std::forward<Args>(args)... ) );
+}
+
+unique_ptr<Batch>
 Dataset::getBatch(int64_t batchId)
 {
-    return batches[batchId];
+    return make_unique<Batch>(batches[batchId]);
+}
+
+unique_ptr<Batch>
+Dataset::getCumulativeBatch(int64_t batchId)
+{
+    return make_unique<Batch>(edges.begin(), batches[batchId].end());
 }
 
 bool
@@ -339,12 +326,6 @@ int64_t
 Dataset::getMaxNumVertices()
 {
     return maxNumVertices;
-}
-
-int64_t
-Dataset::getNumBatches()
-{
-    return batches.size();
 }
 
 std::vector<Batch>::iterator

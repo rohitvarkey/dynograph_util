@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <random>
+#include <memory>
 
 namespace DynoGraph {
 
@@ -17,6 +18,7 @@ struct Args
     int64_t num_batches;
     int64_t num_trials;
     int64_t enable_deletions;
+
     Args(int argc, char **argv);
 };
 
@@ -72,7 +74,7 @@ private:
     void loadEdgesAscii(std::string path);
     void initBatchIterators();
 
-    int64_t numBatches;
+    Args args;
     int64_t directed;
     int64_t maxNumVertices;
 
@@ -82,12 +84,13 @@ public:
     std::vector<Batch> batches;
 
     Dataset(Args args);
-    Dataset(std::vector<Edge> edges, int64_t numBatches, int64_t maxNumVertices);
-    Dataset(std::vector<Edge> edges, int64_t numBatches);
-    int64_t getTimestampForWindow(int64_t batchId, int64_t windowSize);
-    Batch getBatch(int64_t batchId);
+    Dataset(std::vector<Edge> edges, Dataset &other);
 
-    int64_t getNumBatches();
+    int64_t getTimestampForWindow(int64_t batchId);
+
+    std::unique_ptr<Batch> getBatch(int64_t batchId);
+    std::unique_ptr<Batch> getCumulativeBatch(int64_t batchId);
+
     bool isDirected();
     int64_t getMaxNumVertices();
 
