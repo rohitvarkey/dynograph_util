@@ -40,6 +40,32 @@ get_vertex_picker_range_max()
     return rv;
 }
 
+Args::Args(int argc, char **argv)
+{
+    if (argc != 6)
+    {
+        cerr << "Usage: alg_name input_path num_batches window_size num_trials \n";
+        exit(-1);
+    }
+
+    alg_name = argv[1];
+    input_path = argv[2];
+    num_batches = atoll(argv[3]);
+    window_size = atoll(argv[4]);
+    num_trials = atoll(argv[5]);
+    if (window_size == num_batches)
+    {
+        enable_deletions = 0;
+    } else {
+        enable_deletions = 1;
+    }
+    if (num_batches < 1 || window_size < 1 || num_trials < 1)
+    {
+        cerr << "num_batches, window_size, and num_trials must be positive\n";
+        exit(-1);
+    }
+}
+
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
 {
     // Custom sorting order to prepare for deduplication
@@ -186,8 +212,8 @@ Dataset::Dataset(std::vector<Edge> edges, int64_t numBatches)
 }
 
 
-Dataset::Dataset(string path, int64_t numBatches)
-: numBatches(numBatches), directed(true)
+Dataset::Dataset(Args args)
+: numBatches(args.num_batches), directed(true)
 {
     // Sanity check
     if (numBatches < 1)
@@ -197,13 +223,13 @@ Dataset::Dataset(string path, int64_t numBatches)
     }
 
     // Load edges from the file
-    if (has_suffix(path, ".graph.bin"))
+    if (has_suffix(args.input_path, ".graph.bin"))
     {
-        loadEdgesBinary(path);
-    } else if (has_suffix(path, ".graph.el")) {
-        loadEdgesAscii(path);
+        loadEdgesBinary(args.input_path);
+    } else if (has_suffix(args.input_path, ".graph.el")) {
+        loadEdgesAscii(args.input_path);
     } else {
-        cerr << msg << "Unrecognized file extension for " << path << "\n";
+        cerr << msg << "Unrecognized file extension for " << args.input_path << "\n";
         exit(-1);
     }
 

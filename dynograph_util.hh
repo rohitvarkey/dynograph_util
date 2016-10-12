@@ -9,6 +9,17 @@ namespace DynoGraph {
 
 const std::string msg = "[DynoGraph] ";
 
+struct Args
+{
+    std::string alg_name;
+    std::string input_path;
+    int64_t window_size;
+    int64_t num_batches;
+    int64_t num_trials;
+    int64_t enable_deletions;
+    Args(int argc, char **argv);
+};
+
 struct Edge
 {
     int64_t src;
@@ -70,7 +81,7 @@ public:
     std::vector<Edge> edges;
     std::vector<Batch> batches;
 
-    Dataset(std::string path, int64_t numBatches);
+    Dataset(Args args);
     Dataset(std::vector<Edge> edges, int64_t numBatches, int64_t maxNumVertices);
     Dataset(std::vector<Edge> edges, int64_t numBatches);
     int64_t getTimestampForWindow(int64_t batchId, int64_t windowSize);
