@@ -44,7 +44,7 @@ get_vertex_picker_range_max()
 
 Args::Args(int argc, char **argv)
 {
-    if (argc != 6)
+    if (argc != 7)
     {
         cerr << msg << "Usage: alg_name sort_mode input_path num_batches window_size num_trials \n";
         exit(-1);
