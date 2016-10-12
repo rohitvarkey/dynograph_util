@@ -22,13 +22,21 @@ bool operator==(const Edge& a, const Edge& b);
 
 class Batch
 {
-private:
+protected:
     typedef std::vector<Edge>::iterator iterator;
     iterator begin_iter, end_iter;
 public:
     iterator begin();
     iterator end();
     Batch(iterator begin, iterator end);
+};
+
+class DeduplicatedBatch : public Batch
+{
+protected:
+    std::vector<Edge> deduped_edges;
+public:
+    explicit DeduplicatedBatch(Batch& batch);
 };
 
 class VertexPicker
