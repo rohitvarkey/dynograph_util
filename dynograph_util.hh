@@ -92,7 +92,7 @@ public:
     std::vector<Batch> batches;
 
     Dataset(Args args);
-    Dataset(std::vector<Edge> edges, Dataset &other);
+    Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices);
 
     int64_t getTimestampForWindow(int64_t batchId);
     std::unique_ptr<Batch> getBatch(int64_t batchId);

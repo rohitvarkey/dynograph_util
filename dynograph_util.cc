@@ -192,8 +192,8 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
 }
 
 // This version is only used by Boost right now, to create a smaller dataset from a bigger one
-Dataset::Dataset(std::vector<Edge> edges, Dataset &other)
-: args(other.args), directed(other.directed), maxNumVertices(other.maxNumVertices), edges(edges)
+Dataset::Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices)
+: args(args), directed(true), maxNumVertices(maxNumVertices), edges(edges)
 {
     initBatchIterators();
 }
