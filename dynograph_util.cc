@@ -129,22 +129,20 @@ Batch::end() { return end_iter; }
 // Implementation of DynoGraph::DeduplicatedBatch
 
 DeduplicatedBatch::DeduplicatedBatch(Batch &batch)
-: Batch(batch) {
+: Batch(batch), deduped_edges(std::distance(batch.begin(), batch.end())) {
     // Make a copy of the original batch
     std::vector<Edge> sorted_edges(batch.begin(), batch.end()); // TODO is this init done in parallel?
     // Sort the edge list
     std::sort(sorted_edges.begin(), sorted_edges.end(), DynoGraph::operator<);
 
-    // Allocate space for the deduplicated edge list
-    deduped_edges.reserve(sorted_edges.size());
-
     // Deduplicate the edge list
     // Using std::unique_copy since there is no parallel version of std::unique
-    std::unique_copy(sorted_edges.begin(), sorted_edges.end(), std::back_inserter(deduped_edges),
+    Batch::iterator end = std::unique_copy(sorted_edges.begin(), sorted_edges.end(), deduped_edges.begin(),
             // We consider only source and dest when searching for duplicates
             // The input is sorted, so we'll only get the most recent timestamp
             // BUG: Does not combine weights
             [](const Edge& a, const Edge& b) { return a.src == b.src && a.dst == b.dst; });
+    deduped_edges.erase(end, deduped_edges.end());
 
     // Reinitialize the batch pointers
     begin_iter = deduped_edges.begin();
