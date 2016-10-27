@@ -63,6 +63,8 @@ Args::Args(int argc, char **argv)
         exit(-1);
     }
 
+    enable_deletions = (window_size != num_batches);
+
     if      (sort_mode_str == "unsorted") { sort_mode = UNSORTED; }
     else if (sort_mode_str == "presort")  { sort_mode = PRESORT;  }
     else if (sort_mode_str == "snapshot") { sort_mode = SNAPSHOT; }
