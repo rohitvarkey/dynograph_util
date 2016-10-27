@@ -41,6 +41,9 @@ struct Edge
 bool operator<(const Edge& a, const Edge& b);
 bool operator==(const Edge& a, const Edge& b);
 
+// Forward reference
+class Dataset;
+
 class Batch
 {
 protected:
@@ -49,7 +52,8 @@ protected:
 public:
     iterator begin();
     iterator end();
-    Batch(iterator begin, iterator end);
+    Dataset& dataset;
+    Batch(iterator begin, iterator end, Dataset &dataset);
 };
 
 class DeduplicatedBatch : public Batch
