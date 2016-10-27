@@ -11,7 +11,8 @@ using namespace DynoGraph;
 using std::cerr;
 using std::string;
 using std::vector;
-using std::unique_ptr;
+using std::shared_ptr;
+using std::make_shared;
 
 /*
  * HACK
@@ -302,14 +303,7 @@ Dataset::getTimestampForWindow(int64_t batchId)
     return modifiedAfter;
 };
 
-
-template<typename T, typename ...Args>
-std::unique_ptr<T> make_unique( Args&& ...args )
-{
-    return std::unique_ptr<T>( new T( std::forward<Args>(args)... ) );
-}
-
-unique_ptr<Batch>
+shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId)
 {
     Batch & b = batches[batchId];
@@ -317,19 +311,21 @@ Dataset::getBatch(int64_t batchId)
     {
         case Args::UNSORTED:
         {
-            return make_unique<Batch>(b);
+            return make_shared<Batch>(b);
         }
         case Args::PRESORT:
         {
-            return make_unique<DeduplicatedBatch>(b);
+            cerr << msg << "Presorting batch " << batchId << "...\n";
+            return make_shared<DeduplicatedBatch>(b);
         }
         case Args::SNAPSHOT:
         {
+            cerr << msg << "Generating snapshot for batch " << batchId << "...\n";
             int64_t threshold = getTimestampForWindow(batchId);
             auto start = std::find_if(edges.begin(), b.end(),
                 [threshold](const Edge& e){ return e.timestamp >= threshold; });
             Batch filtered(start, b.end());
-            return make_unique<DeduplicatedBatch>(filtered);
+            return make_shared<DeduplicatedBatch>(filtered);
         }
         default: assert(0);
     }

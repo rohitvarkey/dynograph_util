@@ -95,7 +95,7 @@ public:
     Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices);
 
     int64_t getTimestampForWindow(int64_t batchId);
-    std::unique_ptr<Batch> getBatch(int64_t batchId);
+    std::shared_ptr<Batch> getBatch(int64_t batchId);
 
     bool isDirected();
     int64_t getMaxNumVertices();
