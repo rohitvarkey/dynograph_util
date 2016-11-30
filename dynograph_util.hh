@@ -54,6 +54,7 @@ public:
     iterator end();
     Dataset& dataset;
     Batch(iterator begin, iterator end, Dataset &dataset);
+    virtual int64_t num_vertices_affected();
 };
 
 class DeduplicatedBatch : public Batch
@@ -62,6 +63,7 @@ protected:
     std::vector<Edge> deduped_edges;
 public:
     explicit DeduplicatedBatch(Batch& batch);
+    virtual int64_t num_vertices_affected();
 };
 
 class VertexPicker
@@ -87,7 +89,7 @@ private:
     void initBatchIterators();
 
     Args args;
-    int64_t directed;
+    bool directed;
     int64_t maxNumVertices;
 
 public:

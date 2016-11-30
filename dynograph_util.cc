@@ -129,6 +129,13 @@ Batch::begin() { return begin_iter; }
 Batch::iterator
 Batch::end() { return end_iter; }
 
+int64_t Batch::num_vertices_affected()
+{
+    // We need to sort and deduplicate anyways, just use the implementation in DeduplicatedBatch
+    auto sorted = DeduplicatedBatch(*this);
+    return sorted.num_vertices_affected();
+}
+
 // Implementation of DynoGraph::DeduplicatedBatch
 
 DeduplicatedBatch::DeduplicatedBatch(Batch &batch)
@@ -150,6 +157,27 @@ DeduplicatedBatch::DeduplicatedBatch(Batch &batch)
     // Reinitialize the batch pointers
     begin_iter = deduped_edges.begin();
     end_iter = deduped_edges.end();
+}
+
+int64_t
+DeduplicatedBatch::num_vertices_affected()
+{
+    // Get a list of just the vertex ID's in this batch
+    vector<int64_t> src_vertices(deduped_edges.size());
+    vector<int64_t> dst_vertices(deduped_edges.size());
+    std::transform(deduped_edges.begin(), deduped_edges.end(), src_vertices.begin(),
+        [](const Edge& e){ return e.src; });
+    std::transform(deduped_edges.begin(), deduped_edges.end(), dst_vertices.begin(),
+        [](const Edge& e){ return e.dst; });
+    src_vertices.insert(src_vertices.end(), dst_vertices.begin(), dst_vertices.end());
+
+    // Deduplicate
+    vector<int64_t> unique_vertices(src_vertices.size());
+    std::sort(src_vertices.begin(), src_vertices.end());
+    auto end = std::unique_copy(src_vertices.begin(), src_vertices.end(), unique_vertices.begin());
+    unique_vertices.erase(end, unique_vertices.end());
+
+    return unique_vertices.size();
 }
 
 // Implementation of DynoGraph::Dataset
