@@ -81,6 +81,40 @@ private:
     random_number_generator generator;
 };
 
+/**
+ * Returns a list of the highest N vertices in the graph
+ * @param top_n Number of vertex ID's to return
+ * @param nv Total number of vertices in the graph
+ * @param get_degree Function which returns the degree of the specified vertex
+ *        int64_t get_degree(int64_t vertex_id);
+ * @return list of the top_n vertices with highest degree
+ */
+template <typename degree_getter>
+std::vector<int64_t>
+find_high_degree_vertices(int64_t top_n, int64_t nv, degree_getter get_degree)
+{
+    typedef std::pair<int64_t, int64_t> vertex_degree;
+    std::vector<vertex_degree> degrees(nv);
+    #pragma omp parallel for
+    for (int i = 0; i < nv; ++i) {
+        degrees[i] = std::make_pair(i, get_degree(i));
+    }
+
+    // order by degree descending, vertex_id ascending
+    std::sort(degrees.begin(), degrees.end(),
+        [](const vertex_degree &a, const vertex_degree &b) {
+            if (a.second != b.second) { return a.second > b.second; }
+            return a.first < b.first;
+        }
+    );
+
+    degrees.erase(degrees.begin() + top_n, degrees.end());
+    std::vector<int64_t> ids(degrees.size());
+    std::transform(degrees.begin(), degrees.end(), ids.begin(),
+        [](const vertex_degree &d) { return d.first; });
+    return ids;
+}
+
 class Dataset
 {
 private:
