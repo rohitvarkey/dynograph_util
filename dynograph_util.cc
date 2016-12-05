@@ -14,35 +14,6 @@ using std::vector;
 using std::shared_ptr;
 using std::make_shared;
 
-/*
- * HACK
- *   This must be set to larger than the largest vertex ID that DynoGraph will ever see
- * Rationale:
- *   For a given graph, VertexPicker should always return the same sequence of vertex ID's.
- *   This includes "static" experiments, where dynograph_util loads a pre-processed subset of the graph
- *   and would see a different max_nv than the dynamic version.
- *
- *   Long term, dynograph_util should always load the entire dataset and produce "static" versions at runtime.
- *   For now, we will use an oversized distribution range and iterate until we get a valid vertex ID.
- */
-
-int64_t
-get_vertex_picker_range_max()
-{
-    static int64_t rv = 0;
-    if (rv != 0) return rv;
-
-    if (char * s = getenv("VERTEX_PICKER_RANGE_MAX"))
-    {
-        rv = atoll(s);
-    } else {
-        rv = 1LL << 30;
-        cerr << msg << "WARNING: VertexPicker max range unset, set VERTEX_PICKER_RANGE_MAX\n";
-        cerr << msg << "Defaulting to " << rv << "\n";
-    }
-    return rv;
-}
-
 Args::Args(int argc, char **argv)
 {
     if (argc != 7)
@@ -216,7 +187,6 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
         if (e.src > max_nv) { max_nv = e.src; }
         if (e.dst > max_nv) { max_nv = e.dst; }
     }
-    assert(max_nv < get_vertex_picker_range_max());
     return max_nv;
 }
 
@@ -296,25 +266,6 @@ Dataset::loadEdgesAscii(string path)
     }
     fclose(fp);
 }
-
-VertexPicker::VertexPicker(int64_t nv, int64_t seed)
-: seed(seed), max_nv(nv), distribution(0, get_vertex_picker_range_max()), generator(seed) {}
-
-int64_t
-VertexPicker::next() {
-    int64_t value;
-    do { value = distribution(generator); }
-    while (value >= max_nv);
-
-#ifndef NDEBUG
-    cerr << msg << "picking vertex " << value
-         << " from range [" << distribution.a() << "," << distribution.b() << "]\n";
-#endif
-    return value;
-}
-
-void
-VertexPicker::reset() { generator.seed(seed); }
 
 int64_t
 Dataset::getTimestampForWindow(int64_t batchId)

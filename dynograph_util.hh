@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include <vector>
 #include <string>
-#include <random>
 #include <memory>
 
 namespace DynoGraph {
@@ -64,21 +63,6 @@ protected:
 public:
     explicit DeduplicatedBatch(Batch& batch);
     virtual int64_t num_vertices_affected();
-};
-
-class VertexPicker
-{
-public:
-    VertexPicker(int64_t nv, int64_t seed);
-    int64_t next();
-    void reset();
-private:
-    int64_t seed;
-    int64_t max_nv;
-    std::uniform_int_distribution<int64_t> distribution;
-    // Use a 64-bit Mersene Twister for random number generation
-    typedef std::mt19937_64 random_number_generator;
-    random_number_generator generator;
 };
 
 /**
