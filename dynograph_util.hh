@@ -73,15 +73,16 @@ public:
  *        int64_t get_degree(int64_t vertex_id);
  * @return list of the top_n vertices with highest degree
  */
-template <typename degree_getter>
-std::vector<int64_t>
-find_high_degree_vertices(int64_t top_n, int64_t nv, degree_getter get_degree)
+template <typename degree_getter, typename vertex_t>
+std::vector<vertex_t>
+find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
 {
-    typedef std::pair<int64_t, int64_t> vertex_degree;
+    typedef std::pair<vertex_t, int64_t> vertex_degree;
     std::vector<vertex_degree> degrees(nv);
     #pragma omp parallel for
-    for (int i = 0; i < nv; ++i) {
-        degrees[i] = std::make_pair(i, get_degree(i));
+    for (vertex_t i = 0; i < nv; ++i) {
+        int64_t degree = get_degree(i);
+        degrees[i] = std::make_pair(i, degree);
     }
 
     // order by degree descending, vertex_id ascending
@@ -93,7 +94,7 @@ find_high_degree_vertices(int64_t top_n, int64_t nv, degree_getter get_degree)
     );
 
     degrees.erase(degrees.begin() + top_n, degrees.end());
-    std::vector<int64_t> ids(degrees.size());
+    std::vector<vertex_t> ids(degrees.size());
     std::transform(degrees.begin(), degrees.end(), ids.begin(),
         [](const vertex_degree &d) { return d.first; });
     return ids;
