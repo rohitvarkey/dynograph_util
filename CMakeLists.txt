@@ -1,7 +1,12 @@
 cmake_minimum_required (VERSION 2.8.11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-add_library(dynograph_util dynograph_util.cc)
+
+add_subdirectory(hooks)
+
+add_library(dynograph_util STATIC dynograph_util.cc)
 target_compile_definitions(dynograph_util PUBLIC _GLIBCXX_PARALLEL)
+target_link_libraries(hooks)
+target_include_directories(dynograph_util PRIVATE hooks)
 
 find_package( OpenMP )
 if(OPENMP_FOUND)

@@ -3,9 +3,10 @@
 #include <sys/stat.h>
 #include <iostream>
 #include <assert.h>
-#include <parallel/algorithm>
+#include <sstream>
+#include <algorithm>
 
-#include "dynograph_util.hh"
+#include "dynograph_util.h"
 
 using namespace DynoGraph;
 using std::cerr;
@@ -13,6 +14,22 @@ using std::string;
 using std::vector;
 using std::shared_ptr;
 using std::make_shared;
+using std::stringstream;
+
+// Helper functions to split strings
+// http://stackoverflow.com/a/236803/1877086
+void split(const string &s, char delim, vector<string> &elems) {
+    stringstream ss(s);
+    string item;
+    while (getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}
+vector<string> split(const string &s, char delim) {
+    vector<string> elems;
+    split(s, delim, elems);
+    return elems;
+}
 
 Args::Args(int argc, char **argv)
 {
@@ -22,7 +39,8 @@ Args::Args(int argc, char **argv)
         exit(-1);
     }
 
-    alg_name = argv[1];
+    std::string alg_str = argv[1];
+    alg_names = split(alg_str, ' ');
     std::string sort_mode_str = argv[2];
     input_path = argv[3];
     num_batches = atoll(argv[4]);
@@ -91,16 +109,16 @@ count_lines(string path)
 
 // Implementation of DynoGraph::Batch
 
-Batch::Batch(iterator begin, iterator end, Dataset &dataset )
+Batch::Batch(iterator begin, iterator end, const Dataset &dataset )
  : begin_iter(begin), end_iter(end), dataset(dataset) {}
 
 Batch::iterator
-Batch::begin() { return begin_iter; }
+Batch::begin() const { return begin_iter; }
 
 Batch::iterator
-Batch::end() { return end_iter; }
+Batch::end() const { return end_iter; }
 
-int64_t Batch::num_vertices_affected()
+int64_t Batch::num_vertices_affected() const
 {
     // We need to sort and deduplicate anyways, just use the implementation in DeduplicatedBatch
     auto sorted = DeduplicatedBatch(*this);
@@ -109,7 +127,7 @@ int64_t Batch::num_vertices_affected()
 
 // Implementation of DynoGraph::DeduplicatedBatch
 
-DeduplicatedBatch::DeduplicatedBatch(Batch &batch)
+DeduplicatedBatch::DeduplicatedBatch(const Batch &batch)
 : Batch(batch), deduped_edges(std::distance(batch.begin(), batch.end())) {
     // Make a copy of the original batch
     std::vector<Edge> sorted_edges(batch.begin(), batch.end()); // TODO is this init done in parallel?
@@ -118,7 +136,7 @@ DeduplicatedBatch::DeduplicatedBatch(Batch &batch)
 
     // Deduplicate the edge list
     // Using std::unique_copy since there is no parallel version of std::unique
-    Batch::iterator end = std::unique_copy(sorted_edges.begin(), sorted_edges.end(), deduped_edges.begin(),
+    auto end = std::unique_copy(sorted_edges.begin(), sorted_edges.end(), deduped_edges.begin(),
             // We consider only source and dest when searching for duplicates
             // The input is sorted, so we'll only get the most recent timestamp
             // BUG: Does not combine weights
@@ -131,7 +149,7 @@ DeduplicatedBatch::DeduplicatedBatch(Batch &batch)
 }
 
 int64_t
-DeduplicatedBatch::num_vertices_affected()
+DeduplicatedBatch::num_vertices_affected() const
 {
     // Get a list of just the vertex ID's in this batch
     vector<int64_t> src_vertices(deduped_edges.size());
@@ -268,7 +286,7 @@ Dataset::loadEdgesAscii(string path)
 }
 
 int64_t
-Dataset::getTimestampForWindow(int64_t batchId)
+Dataset::getTimestampForWindow(int64_t batchId) const
 {
     int64_t modifiedAfter = INT64_MIN;
     if (batchId > args.window_size)
@@ -283,9 +301,9 @@ Dataset::getTimestampForWindow(int64_t batchId)
 };
 
 shared_ptr<Batch>
-Dataset::getBatch(int64_t batchId)
+Dataset::getBatch(int64_t batchId) const
 {
-    Batch & b = batches[batchId];
+    const Batch & b = batches[batchId];
     switch (args.sort_mode)
     {
         case Args::UNSORTED:
@@ -311,18 +329,18 @@ Dataset::getBatch(int64_t batchId)
 }
 
 bool
-Dataset::isDirected()
+Dataset::isDirected() const
 {
     return directed;
 }
 
 int64_t
-Dataset::getMaxNumVertices()
+Dataset::getMaxNumVertices() const
 {
     return maxNumVertices;
 }
 
-std::vector<Batch>::iterator
-Dataset::begin() { return batches.begin(); }
-std::vector<Batch>::iterator
-Dataset::end() { return batches.end(); }
+std::vector<Batch>::const_iterator
+Dataset::begin() const { return batches.cbegin(); }
+std::vector<Batch>::const_iterator
+Dataset::end() const { return batches.cend(); }
