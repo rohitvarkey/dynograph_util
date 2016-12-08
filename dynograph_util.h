@@ -133,6 +133,7 @@ template <typename degree_getter, typename vertex_t>
 std::vector<vertex_t>
 find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
 {
+    top_n = std::min(top_n, nv);
     typedef std::pair<vertex_t, int64_t> vertex_degree;
     std::vector<vertex_degree> degrees(nv);
     #pragma omp parallel for
@@ -143,16 +144,16 @@ find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
 
     // order by degree descending, vertex_id ascending
     std::sort(degrees.begin(), degrees.end(),
-            [](const vertex_degree &a, const vertex_degree &b) {
-                if (a.second != b.second) { return a.second > b.second; }
-                return a.first < b.first;
-            }
+        [](const vertex_degree &a, const vertex_degree &b) {
+            if (a.second != b.second) { return a.second > b.second; }
+            return a.first < b.first;
+        }
     );
 
     degrees.erase(degrees.begin() + top_n, degrees.end());
     std::vector<vertex_t> ids(degrees.size());
     std::transform(degrees.begin(), degrees.end(), ids.begin(),
-            [](const vertex_degree &d) { return d.first; });
+        [](const vertex_degree &d) { return d.first; });
     return ids;
 }
 
@@ -165,9 +166,12 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
     else if (alg_name == "bc") { num_sources = 128; }
     else { num_sources = 0; }
 
+    int64_t nv = graph.get_num_vertices();
+    num_sources = std::min(num_sources, nv);
+
     std::vector<int64_t> sources;
-    if (num_sources != 0) {
-        sources = find_high_degree_vertices(num_sources, graph.get_num_vertices(),
+    if (num_sources > 0) {
+        sources = find_high_degree_vertices(num_sources, nv,
             [&graph](int64_t i){ return graph.get_out_degree(i); });
     }
     return sources;
