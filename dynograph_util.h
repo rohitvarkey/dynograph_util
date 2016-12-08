@@ -97,10 +97,14 @@ public:
     std::vector<Batch>::const_iterator end() const;
 };
 
-struct DynamicGraph
+class DynamicGraph
 {
+protected:
+    const Dataset& dataset;
+    const Args& args;
+public:
     // Initialize the graph - your constructor must match this signature
-    DynamicGraph(const Dataset& dataset, const Args& args) {};
+    DynamicGraph(const Dataset& dataset, const Args& args) : dataset(dataset), args(args) {};
     // Prepare to insert the batch
     virtual void before_batch(const Batch& batch, int64_t threshold) = 0;
     // Delete edges in the graph with a timestamp older than <threshold>
