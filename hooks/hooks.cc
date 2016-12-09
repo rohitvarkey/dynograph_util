@@ -29,6 +29,13 @@ using std::cerr;
 using std::string;
 using std::vector;
 
+#if defined(HOOKS_PRETTY_PRINT)
+// setw is overloaded to format json with indents
+static const int json_output_indent_level = 2;
+#else
+static const int json_output_indent_level = 0;
+#endif
+
 class Hooks::impl
 {
     friend class Hooks;
@@ -129,6 +136,9 @@ class Hooks::impl
     void __attribute__ ((noinline))
     region_begin(string name)
     {
+#if defined(USE_MPI)
+        MPI_Barrier(MPI_COMM_WORLD);
+#endif
         // Check for mismatched begin/end pairs
         if (region_name != "") {
             cerr << "ERROR: called region_begin inside region\n";
@@ -187,18 +197,14 @@ class Hooks::impl
         }
 #endif
 
-        // Populate the results object
-        json results = attrs;
-
         // Check for mismatched begin/end pairs
         if (region_name == "") {
             cerr << "ERROR: called region_end before region_begin\n";
             exit(-1);
-        } else {
-            // Set region name in output and reset for next region
-            results["region_name"] = region_name;
-            region_name = "";
         }
+
+        // Populate the results object
+        json results;
 
         // Save # of traversed edges if the function was used
         int64_t total_edges_traversed = 0;
@@ -228,6 +234,39 @@ class Hooks::impl
 #endif
 
 #if defined(USE_MPI)
+        combine_results(results);
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (rank == 0) {
+#endif
+
+        // Set region name in output
+        results["region_name"] = region_name;
+        // Reset for next region
+        region_name = "";
+
+        // Append custom attributes
+        for (json::iterator it = attrs.begin(); it != attrs.end(); ++it){
+            string key = it.key();
+            results[key] = attrs[key];
+        }
+
+        // At this point we've accumulated all the data for this ROI into a json object (results)
+        // Finally, send it to the output stream
+        out << std::setw(json_output_indent_level) << results << std::endl;
+
+#if defined(USE_MPI)
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+#endif
+        // Reset for next region
+        region_name = "";
+    }
+
+#if defined(USE_MPI)
+    void
+    combine_results(json &results)
+    {
         // Combine results from each rank so only rank 0 prints to stdout
         int rank, comm_size;
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -239,8 +278,8 @@ class Hooks::impl
         int32_t local_string_length = local_results_string.size();
         vector<int32_t> string_lengths(comm_size);
         MPI_Gather(
-            &local_string_length, 1, MPI_INT64_T,
-            string_lengths.data(), 1, MPI_INT64_T,
+            &local_string_length, 1, MPI_INT32_T,
+            string_lengths.data(), 1, MPI_INT32_T,
             0, MPI_COMM_WORLD
         );
 
@@ -252,7 +291,7 @@ class Hooks::impl
         std::partial_sum(string_lengths.begin(), string_lengths.end(), begin(displacements));
         // Prefix sum gave us the end of each string, but we need the beginnings, so shift the whole list to the right
         // We have one extra spot at the end of the string, so we aren't losing anything
-        displacements.shift(-1);
+        displacements = displacements.shift(-1);
 
         // Get strings from each process
         MPI_Gatherv(
@@ -270,7 +309,7 @@ class Hooks::impl
             {
                 // Find the string position in the data
                 char * s = global_results_vec.data() + displacements[i];
-                size_t len = displacements[i + 1] - displacements[i];
+                uint32_t len = displacements[i + 1] - displacements[i];
                 // Parse back into json object
                 results_by_pid[i] = json::parse(string(s,len));
             }
@@ -280,37 +319,15 @@ class Hooks::impl
             {
                 string key = it.key();
                 results[key] = json::array();
-                for (int i = 1; i < comm_size; ++i)
+                for (int i = 0; i < comm_size; ++i)
                 {
                     results[key] += results_by_pid[i][key];
                 }
             }
         }
-
-#endif
-
-#if defined(HOOKS_PRETTY_PRINT)
-    // setw is overloaded to format json with indents
-    int indent = 2;
-#else
-    int indent = 0;
-#endif
-
-
-#if defined(USE_MPI)
-    if (rank == 0){
-#endif
-
-        // At this point we've accumulated all the data for this ROI into a json object (results)
-        // Finally, send it to the output stream
-        out << std::setw(indent) << results << std::endl;
-
-#if defined(USE_MPI)
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 #endif
-
-
-    }
 
     void traverse_edges(int64_t n) {
         num_traversed_edges[get_thread_id()] += n;
