@@ -6,6 +6,12 @@
 #include <sstream>
 #include <algorithm>
 
+#if defined(USE_MPI)
+#include <mpi.h>
+#include <valarray>
+
+#endif
+
 #include "dynograph_util.h"
 
 using namespace DynoGraph;
@@ -183,14 +189,14 @@ void Dataset::initBatchIterators()
 {
     // Intentionally rounding down here
     // TODO variable number of edges per batch
-    int64_t edgesPerBatch = edges.size() / args.num_batches;
+    int64_t edges_per_batch = edges.size() / args.num_batches;
 
     // Store iterators to the beginning and end of each batch
     for (int i = 0; i < args.num_batches; ++i)
     {
-        size_t offset = i * edgesPerBatch;
+        size_t offset = i * edges_per_batch;
         auto begin = edges.begin() + offset;
-        auto end = edges.begin() + offset + edgesPerBatch;
+        auto end = edges.begin() + offset + edges_per_batch;
         batches.push_back(Batch(begin, end, *this));
     }
 }
@@ -218,6 +224,12 @@ Dataset::Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices)
 Dataset::Dataset(Args args)
 : args(args), directed(true)
 {
+#if defined(USE_MPI)
+    int rank, comm_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+    if (rank == 0){
+#endif
     // Load edges from the file
     if (has_suffix(args.input_path, ".graph.bin"))
     {
@@ -229,10 +241,106 @@ Dataset::Dataset(Args args)
         exit(-1);
     }
 
-    initBatchIterators();
     // Could save work by counting max vertex id while loading edges, but easier to just do it here
     maxNumVertices = getMaxVertexId(edges) + 1;
+
+#if defined(USE_MPI)
+        cerr << msg << "Distributing dataset to " << comm_size << " ranks...\n";
+    }
+
+    // Move the edges out of rank 0's member variable
+    vector<Edge> all_edges = std::move(edges);
+    edges.clear();
+
+    // Send max_nv to all ranks
+    MPI_Bcast(&maxNumVertices, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+
+    /*
+     * Now we need to distribute the edges to each process in the group
+     * Each process will have the same number of batches, but each batch
+     * will be a slice of the corresponding batch in the parent
+     */
+    int64_t edges_per_batch = all_edges.size() / args.num_batches;
+    MPI_Bcast(&edges_per_batch, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    vector<int> bytes_per_rank(comm_size);
+    std::valarray<int> displacements(comm_size+1);
+    if (rank == 0)
+    {
+        // Divide the batch evenly among the ranks
+        int edges_per_rank = std::floor(edges_per_batch / comm_size);
+        for (int i = 0; i < comm_size; ++i)
+        {
+            // Assign a portion of edges to this rank
+            int num_edges = edges_per_rank;
+            // Distribute remainder evenly
+            if (i < edges_per_batch % comm_size) { num_edges += 1; }
+            // Calculate how big this chunk is and where it starts in the buffer
+            bytes_per_rank[i] = num_edges * sizeof(Edge);
+        }
+        std::partial_sum(bytes_per_rank.begin(), bytes_per_rank.end(), std::begin(displacements));
+        // Prefix sum gives the end of each buffer, shift to get a list of beginnings
+        displacements = displacements.shift(-1);
+    }
+
+    // Send the size of each slice to the ranks
+    int local_num_bytes;
+    MPI_Scatter(
+        bytes_per_rank.data(), 1, MPI_INT,
+        &local_num_bytes, 1, MPI_INT,
+        0, MPI_COMM_WORLD
+    );
+
+    // Allocate local storage for the edges
+    edges.resize((local_num_bytes / sizeof(Edge)) * args.num_batches);
+    for (int batchId = 0; batchId < args.num_batches; ++batchId)
+    {
+        // Scatter the edges in this batch to the ranks
+        MPI_Scatterv(
+            all_edges.data(), bytes_per_rank.data(), &displacements[0], MPI_BYTE,
+            edges.data(), local_num_bytes, MPI_BYTE,
+            0, MPI_COMM_WORLD
+        );
+
+        // Move to the next batch
+        displacements += edges_per_batch * sizeof(Edge);
+    }
+#endif
+    
+    initBatchIterators();
 }
+
+
+#ifdef USE_MPI
+
+// Register a type with MPI to hold a tuple of (vertex_id, degree)
+void
+DynoGraph::register_vertex_degree_type(MPI_Datatype *type)
+{
+    MPI_Datatype vertex_degree_type;
+    MPI_Type_contiguous(2, MPI_INT64_T, &vertex_degree_type);
+//    int blocks[] = {1, 1};
+//    MPI_Aint displacements[] = {offsetof(vertex_degree, first), offsetof(vertex_degree, second)};
+//    MPI_Datatype types[] = {MPI_INT64_T, MPI_INT64_T};
+//    MPI_Type_create_struct(2, blocks, displacements, types, &vertex_degree_type);
+    MPI_Type_commit(&vertex_degree_type);
+}
+
+// Reduce to get the vertex id with the highest degree across all processes
+// (if there is a tie, pick the smallest vertex id)
+// MPI requires this awkward signature: a and b are arrays of length len which should be reduced into b
+void
+DynoGraph::vertex_degree_reducer(vertex_degree *a, vertex_degree *b, int *len, MPI_Datatype *datatype) {
+    for (int i = 0; i < *len; ++i) {
+        int64_t vid_a = a[i].first;
+        int64_t vid_b = b[i].first;
+        int64_t degree_a = a[i].second;
+        int64_t degree_b = b[i].second;
+        vertex_degree &out = b[i];
+        if (degree_a != degree_b) { out = degree_a > degree_b ? a[i] : b[i]; }
+        else { out = vid_a < vid_b ? a[i] : b[i]; }
+    }
+}
+#endif
 
 void
 Dataset::loadEdgesBinary(string path)
@@ -293,8 +401,8 @@ Dataset::getTimestampForWindow(int64_t batchId) const
     {
         // Intentionally rounding down here
         // TODO variable number of edges per batch
-        int64_t edgesPerBatch = edges.size() / batches.size();
-        int64_t startEdge = (batchId - args.window_size) * edgesPerBatch;
+        int64_t edges_per_batch = edges.size() / batches.size();
+        int64_t startEdge = (batchId - args.window_size) * edges_per_batch;
         modifiedAfter = edges[startEdge].timestamp;
     }
     return modifiedAfter;

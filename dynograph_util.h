@@ -7,6 +7,10 @@
 #include <memory>
 #include <iostream>
 #include <algorithm>
+#include <assert.h>
+#ifdef USE_MPI
+#include <omp.h>
+#endif
 
 namespace DynoGraph {
 
@@ -121,6 +125,9 @@ public:
     virtual int64_t get_num_edges() const = 0;
 };
 
+// Holds a vertex id and its out degree
+typedef std::pair<int64_t, int64_t> vertex_degree;
+
 /**
  * Returns a list of the highest N vertices in the graph
  * @param top_n Number of vertex ID's to return
@@ -134,7 +141,7 @@ std::vector<vertex_t>
 find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
 {
     top_n = std::min(top_n, nv);
-    typedef std::pair<vertex_t, int64_t> vertex_degree;
+
     std::vector<vertex_degree> degrees(nv);
     #pragma omp parallel for
     for (vertex_t i = 0; i < nv; ++i) {
@@ -157,6 +164,11 @@ find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
     return ids;
 }
 
+#ifdef USE_MPI
+void register_vertex_degree_type(MPI_Datatype *type);
+void vertex_degree_reducer(vertex_degree *a, vertex_degree *b, int *len, MPI_Datatype *datatype);
+#endif
+
 template<typename graph_t>
 std::vector<int64_t>
 pick_sources_for_alg(std::string alg_name, graph_t &graph)
@@ -169,10 +181,28 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
     int64_t nv = graph.get_num_vertices();
     num_sources = std::min(num_sources, nv);
 
+    auto get_degree = [&graph](int64_t i){ return graph.get_out_degree(i); };
     std::vector<int64_t> sources;
     if (num_sources > 0) {
-        sources = find_high_degree_vertices(num_sources, nv,
-            [&graph](int64_t i){ return graph.get_out_degree(i); });
+        sources = find_high_degree_vertices(num_sources, nv, get_degree);
+
+#ifdef USE_MPI
+        // For now, Boost only has bfs and sssp, which require just one source vertex
+        assert(num_sources == 1);
+        // Register a type with MPI to hold a tuple of (vertex_id, degree)
+        MPI_Datatype vertex_degree_type;
+        register_vertex_degree_type(&vertex_degree_type);
+        // Set the local max-degree vertex
+        vertex_degree local_vertex_degree = std::make_pair(sources[0], graph.get_out_degree(sources[0]));
+        // Create a custom MPI reducer function that matches the sort logic of find_high_degree_vertices
+        MPI_Op compare_op;
+        MPI_Op_create((MPI_User_function *)(vertex_degree_reducer), false, &compare_op);
+        // Reduce, giving all ranks the same source vertex
+        vertex_degree global_vertex_degree;
+        MPI_Allreduce(&local_vertex_degree, &global_vertex_degree, 1, vertex_degree_type, compare_op, MPI_COMM_WORLD);
+        MPI_Op_free(&compare_op);
+        sources = {global_vertex_degree.first};
+#endif
     }
     return sources;
 }

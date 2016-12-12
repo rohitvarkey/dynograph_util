@@ -8,6 +8,11 @@ target_compile_definitions(dynograph_util PUBLIC _GLIBCXX_PARALLEL)
 target_link_libraries(hooks)
 target_include_directories(dynograph_util PRIVATE hooks)
 
+if (MPI_FOUND)
+  include_directories(${MPI_CXX_INCLUDE_PATH})
+  add_definitions(-DUSE_MPI)
+endif()
+
 find_package( OpenMP )
 if(OPENMP_FOUND)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
