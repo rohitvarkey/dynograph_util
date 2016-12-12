@@ -138,7 +138,7 @@ DeduplicatedBatch::DeduplicatedBatch(const Batch &batch)
     // Make a copy of the original batch
     std::vector<Edge> sorted_edges(batch.begin(), batch.end()); // TODO is this init done in parallel?
     // Sort the edge list
-    std::sort(sorted_edges.begin(), sorted_edges.end(), DynoGraph::operator<);
+    std::sort(sorted_edges.begin(), sorted_edges.end());
 
     // Deduplicate the edge list
     // Using std::unique_copy since there is no parallel version of std::unique
@@ -452,3 +452,36 @@ std::vector<Batch>::const_iterator
 Dataset::begin() const { return batches.cbegin(); }
 std::vector<Batch>::const_iterator
 Dataset::end() const { return batches.cend(); }
+
+// Partial implementation of DynamicGraph
+
+DynamicGraph::DynamicGraph(const Dataset& dataset, const Args& args)
+: dataset(dataset), args(args) {}
+
+// Implementation of vertex_degree
+vertex_degree::vertex_degree() {}
+
+vertex_degree::vertex_degree(int64_t vertex_id, int64_t out_degree)
+: vertex_id(vertex_id), out_degree(out_degree) {}
+
+bool
+DynoGraph::operator < (const vertex_degree &a, const vertex_degree &b) {
+    if (a.out_degree != b.out_degree) { return a.out_degree < b.out_degree; }
+    return a.vertex_id > b.vertex_id;
+}
+
+// Implementation of Logger
+Logger::Logger (std::ostream &out) : out(out) {}
+
+Logger&
+Logger::get_instance() {
+    static Logger instance(std::cerr);
+    return instance;
+}
+
+Logger&
+Logger::operator<<(std::ostream& (*manip)(std::ostream&)) {
+    oss << manip;
+    return *this;
+}
+

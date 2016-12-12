@@ -108,7 +108,7 @@ protected:
     const Args& args;
 public:
     // Initialize the graph - your constructor must match this signature
-    DynamicGraph(const Dataset& dataset, const Args& args) : dataset(dataset), args(args) {};
+    DynamicGraph(const Dataset& dataset, const Args& args);
     // Prepare to insert the batch
     virtual void before_batch(const Batch& batch, int64_t threshold) = 0;
     // Delete edges in the graph with a timestamp older than <threshold>
@@ -126,7 +126,14 @@ public:
 };
 
 // Holds a vertex id and its out degree
-typedef std::pair<int64_t, int64_t> vertex_degree;
+struct vertex_degree
+{
+    int64_t vertex_id;
+    int64_t out_degree;
+    vertex_degree();
+    vertex_degree(int64_t vertex_id, int64_t out_degree);
+};
+bool operator < (const vertex_degree &a, const vertex_degree &b);
 
 /**
  * Returns a list of the highest N vertices in the graph
@@ -146,28 +153,18 @@ find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
     #pragma omp parallel for
     for (vertex_t i = 0; i < nv; ++i) {
         int64_t degree = get_degree(i);
-        degrees[i] = std::make_pair(i, degree);
+        degrees[i] = vertex_degree(i, degree);
     }
 
     // order by degree descending, vertex_id ascending
-    std::sort(degrees.begin(), degrees.end(),
-        [](const vertex_degree &a, const vertex_degree &b) {
-            if (a.second != b.second) { return a.second > b.second; }
-            return a.first < b.first;
-        }
-    );
+    std::sort(degrees.begin(), degrees.end());
 
     degrees.erase(degrees.begin() + top_n, degrees.end());
     std::vector<vertex_t> ids(degrees.size());
     std::transform(degrees.begin(), degrees.end(), ids.begin(),
-        [](const vertex_degree &d) { return d.first; });
+        [](const vertex_degree &d) { return d.vertex_id; });
     return ids;
 }
-
-#ifdef USE_MPI
-void register_vertex_degree_type(MPI_Datatype *type);
-void vertex_degree_reducer(vertex_degree *a, vertex_degree *b, int *len, MPI_Datatype *datatype);
-#endif
 
 template<typename graph_t>
 std::vector<int64_t>
@@ -189,19 +186,27 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
 #ifdef USE_MPI
         // For now, Boost only has bfs and sssp, which require just one source vertex
         assert(num_sources == 1);
-        // Register a type with MPI to hold a tuple of (vertex_id, degree)
+        // Register the vertex_degree type with MPI
         MPI_Datatype vertex_degree_type;
-        register_vertex_degree_type(&vertex_degree_type);
+        MPI_Type_contiguous(2, MPI_INT64_T, &vertex_degree_type);
+        MPI_Type_commit(&vertex_degree_type);
         // Set the local max-degree vertex
-        vertex_degree local_vertex_degree = std::make_pair(sources[0], graph.get_out_degree(sources[0]));
-        // Create a custom MPI reducer function that matches the sort logic of find_high_degree_vertices
-        MPI_Op compare_op;
-        MPI_Op_create((MPI_User_function *)(vertex_degree_reducer), false, &compare_op);
-        // Reduce, giving all ranks the same source vertex
-        vertex_degree global_vertex_degree;
-        MPI_Allreduce(&local_vertex_degree, &global_vertex_degree, 1, vertex_degree_type, compare_op, MPI_COMM_WORLD);
-        MPI_Op_free(&compare_op);
-        sources = {global_vertex_degree.first};
+        vertex_degree local_vertex_degree(sources[0], get_degree(sources[0]));
+        // Gather all in rank 0
+        int comm_size;
+        MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+        std::vector<vertex_degree> gathered_vertex_degrees(comm_size);
+        MPI_Gather(
+            &local_vertex_degree, 1, vertex_degree_type,
+            gathered_vertex_degrees.data(), 1, vertex_degree_type,
+            0, MPI_COMM_WORLD
+        );
+        // Find max-degree vertex of all ranks
+        vertex_degree global_vertex_degree = *std::max_element(
+            gathered_vertex_degrees.begin(), gathered_vertex_degrees.end());
+        // Broadcast to all ranks
+        MPI_Bcast(&global_vertex_degree, 1, vertex_degree_type, 0, MPI_COMM_WORLD);
+        sources = {global_vertex_degree.vertex_id};
 #endif
     }
     return sources;
