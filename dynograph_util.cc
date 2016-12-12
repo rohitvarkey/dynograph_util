@@ -37,11 +37,12 @@ vector<string> split(const string &s, char delim) {
     return elems;
 }
 
-Args::Args(int argc, char **argv)
+Args::Args(int argc, char *argv[])
 {
+    Logger &logger = Logger::get_instance();
     if (argc != 7)
     {
-        cerr << msg << "Usage: alg_name sort_mode input_path num_batches window_size num_trials \n";
+        logger << "Usage: alg_name sort_mode input_path num_batches window_size num_trials \n";
         exit(-1);
     }
 
@@ -55,7 +56,7 @@ Args::Args(int argc, char **argv)
 
     if (num_batches < 1 || window_size < 1 || num_trials < 1)
     {
-        cerr << msg << "num_batches, window_size, and num_trials must be positive\n";
+        logger << "num_batches, window_size, and num_trials must be positive\n";
         exit(-1);
     }
 
@@ -65,7 +66,7 @@ Args::Args(int argc, char **argv)
     else if (sort_mode_str == "presort")  { sort_mode = PRESORT;  }
     else if (sort_mode_str == "snapshot") { sort_mode = SNAPSHOT; }
     else {
-        cerr << msg << "sort_mode must be one of ['unsorted', 'presort', 'snapshot']\n";
+        logger << "sort_mode must be one of ['unsorted', 'presort', 'snapshot']\n";
         exit(-1);
     }
 
@@ -94,10 +95,11 @@ bool DynoGraph::operator==(const Edge& a, const Edge& b)
 int64_t
 count_lines(string path)
 {
+    Logger &logger = Logger::get_instance();
     FILE* fp = fopen(path.c_str(), "r");
     if (fp == NULL)
     {
-        cerr << msg << "Failed to open " << path << "\n";
+        logger << "Failed to open " << path << "\n";
         exit(-1);
     }
     int64_t lines = 0;
@@ -224,6 +226,7 @@ Dataset::Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices)
 Dataset::Dataset(Args args)
 : args(args), directed(true)
 {
+    Logger &logger = Logger::get_instance();
 #if defined(USE_MPI)
     int rank, comm_size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -237,7 +240,7 @@ Dataset::Dataset(Args args)
     } else if (has_suffix(args.input_path, ".graph.el")) {
         loadEdgesAscii(args.input_path);
     } else {
-        cerr << msg << "Unrecognized file extension for " << args.input_path << "\n";
+        logger << "Unrecognized file extension for " << args.input_path << "\n";
         exit(-1);
     }
 
@@ -245,7 +248,7 @@ Dataset::Dataset(Args args)
     maxNumVertices = getMaxVertexId(edges) + 1;
 
 #if defined(USE_MPI)
-        cerr << msg << "Distributing dataset to " << comm_size << " ranks...\n";
+        logger << "Distributing dataset to " << comm_size << " ranks...\n";
     }
 
     // Move the edges out of rank 0's member variable
@@ -262,101 +265,87 @@ Dataset::Dataset(Args args)
      */
     int64_t edges_per_batch = all_edges.size() / args.num_batches;
     MPI_Bcast(&edges_per_batch, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-    vector<int> bytes_per_rank(comm_size);
+    vector<int> edges_per_slice(comm_size);
     std::valarray<int> displacements(comm_size+1);
     if (rank == 0)
     {
         // Divide the batch evenly among the ranks
-        int edges_per_rank = std::floor(edges_per_batch / comm_size);
         for (int i = 0; i < comm_size; ++i)
         {
-            // Assign a portion of edges to this rank
-            int num_edges = edges_per_rank;
-            // Distribute remainder evenly
-            if (i < edges_per_batch % comm_size) { num_edges += 1; }
-            // Calculate how big this chunk is and where it starts in the buffer
-            bytes_per_rank[i] = num_edges * sizeof(Edge);
+            // Assign a portion of edges to this rank and distribute the remainder evenly
+            int slice_size = std::floor(edges_per_batch / comm_size);
+            if (i < edges_per_batch % comm_size) { slice_size += 1; }
+            edges_per_slice[i] = slice_size;
         }
-        std::partial_sum(bytes_per_rank.begin(), bytes_per_rank.end(), std::begin(displacements));
+        // Calculate the boundaries of each slice in the all_edges buffer
+        std::partial_sum(edges_per_slice.begin(), edges_per_slice.end(), std::begin(displacements));
         // Prefix sum gives the end of each buffer, shift to get a list of beginnings
         displacements = displacements.shift(-1);
     }
 
     // Send the size of each slice to the ranks
-    int local_num_bytes;
+    int local_slice_size;
     MPI_Scatter(
-        bytes_per_rank.data(), 1, MPI_INT,
-        &local_num_bytes, 1, MPI_INT,
+        edges_per_slice.data(), 1, MPI_INT,
+        &local_slice_size, 1, MPI_INT,
         0, MPI_COMM_WORLD
     );
 
-    // Allocate local storage for the edges
-    edges.resize((local_num_bytes / sizeof(Edge)) * args.num_batches);
-    for (int batchId = 0; batchId < args.num_batches; ++batchId)
+    // Register the Edge type with MPI
+    MPI_Datatype edge_type;
+    MPI_Type_contiguous(4, MPI_INT64_T, &edge_type);
+    MPI_Type_commit(&edge_type);
+
+    // Allocate local storage for this rank's slices
+    edges.resize(local_slice_size * args.num_batches);
+    Edge * local_slice_begin = edges.data();
+    for (int batch_id = 0; batch_id < args.num_batches; ++batch_id)
     {
-        // Scatter the edges in this batch to the ranks
+        // Scatter the slices in this batch to the ranks
         MPI_Scatterv(
-            all_edges.data(), bytes_per_rank.data(), &displacements[0], MPI_BYTE,
-            edges.data(), local_num_bytes, MPI_BYTE,
+            // Source buffer is always the global list of edges in rank 0
+            all_edges.data(),
+            // List of how big each rank's slice is ( edges per batch divided by number of ranks, +/- 1)
+            edges_per_slice.data(),
+            // Start positions of each slice within all_edges
+            &displacements[0],
+            // Send data type = Edge
+            edge_type,
+            // Destination buffer is pointer into slice of local edge list
+            local_slice_begin,
+            // Number of edges in this rank's slice
+            local_slice_size,
+            // Receive data type = Edge
+            edge_type,
+            // Scatter from rank 0, use global communicator
             0, MPI_COMM_WORLD
         );
 
-        // Move to the next batch
-        displacements += edges_per_batch * sizeof(Edge);
+        // Move to the next batch in the source and destination buffers
+        displacements += edges_per_batch;
+        local_slice_begin += local_slice_size;
     }
 #endif
     
     initBatchIterators();
 }
 
-
-#ifdef USE_MPI
-
-// Register a type with MPI to hold a tuple of (vertex_id, degree)
-void
-DynoGraph::register_vertex_degree_type(MPI_Datatype *type)
-{
-    MPI_Datatype vertex_degree_type;
-    MPI_Type_contiguous(2, MPI_INT64_T, &vertex_degree_type);
-//    int blocks[] = {1, 1};
-//    MPI_Aint displacements[] = {offsetof(vertex_degree, first), offsetof(vertex_degree, second)};
-//    MPI_Datatype types[] = {MPI_INT64_T, MPI_INT64_T};
-//    MPI_Type_create_struct(2, blocks, displacements, types, &vertex_degree_type);
-    MPI_Type_commit(&vertex_degree_type);
-}
-
-// Reduce to get the vertex id with the highest degree across all processes
-// (if there is a tie, pick the smallest vertex id)
-// MPI requires this awkward signature: a and b are arrays of length len which should be reduced into b
-void
-DynoGraph::vertex_degree_reducer(vertex_degree *a, vertex_degree *b, int *len, MPI_Datatype *datatype) {
-    for (int i = 0; i < *len; ++i) {
-        int64_t vid_a = a[i].first;
-        int64_t vid_b = b[i].first;
-        int64_t degree_a = a[i].second;
-        int64_t degree_b = b[i].second;
-        vertex_degree &out = b[i];
-        if (degree_a != degree_b) { out = degree_a > degree_b ? a[i] : b[i]; }
-        else { out = vid_a < vid_b ? a[i] : b[i]; }
-    }
-}
-#endif
-
 void
 Dataset::loadEdgesBinary(string path)
 {
-    cerr << msg << "Checking file size of " << path << "...\n";
+    Logger &logger = Logger::get_instance();
+    logger << "Checking file size of " << path << "...\n";
     FILE* fp = fopen(path.c_str(), "rb");
     struct stat st;
     if (stat(path.c_str(), &st) != 0)
     {
-        cerr << msg << "Failed to stat " << path << "\n";
+        logger << "Failed to stat " << path << "\n";
         exit(-1);
     }
     int64_t numEdges = st.st_size / sizeof(Edge);
 
     string directedStr = directed ? "directed" : "undirected";
-    cerr << msg << "Preloading " << numEdges << " "
+    logger << "Preloading " << numEdges << " "
          << directedStr
          << " edges from " << path << "...\n";
 
@@ -365,7 +354,7 @@ Dataset::loadEdgesBinary(string path)
     size_t rc = fread(&edges[0], sizeof(Edge), numEdges, fp);
     if (rc != static_cast<size_t>(numEdges))
     {
-        cerr << msg << "Failed to load graph from " << path << "\n";
+        logger << "Failed to load graph from " << path << "\n";
         exit(-1);
     }
     fclose(fp);
@@ -374,11 +363,12 @@ Dataset::loadEdgesBinary(string path)
 void
 Dataset::loadEdgesAscii(string path)
 {
-    cerr << msg << "Counting lines in " << path << "...\n";
+    Logger &logger = Logger::get_instance();
+    logger << "Counting lines in " << path << "...\n";
     int64_t numEdges = count_lines(path);
 
     string directedStr = directed ? "directed" : "undirected";
-    cerr << msg << "Preloading " << numEdges << " "
+    logger << "Preloading " << numEdges << " "
          << directedStr
          << " edges from " << path << "...\n";
 
@@ -411,6 +401,7 @@ Dataset::getTimestampForWindow(int64_t batchId) const
 shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId) const
 {
+    Logger &logger = Logger::get_instance();
     const Batch & b = batches[batchId];
     switch (args.sort_mode)
     {
@@ -420,19 +411,19 @@ Dataset::getBatch(int64_t batchId) const
         }
         case Args::PRESORT:
         {
-            cerr << msg << "Presorting batch " << batchId << "...\n";
+            logger << "Presorting batch " << batchId << "...\n";
             return make_shared<DeduplicatedBatch>(b);
         }
         case Args::SNAPSHOT:
         {
-            cerr << msg << "Generating snapshot for batch " << batchId << "...\n";
+            logger << "Generating snapshot for batch " << batchId << "...\n";
             int64_t threshold = getTimestampForWindow(batchId);
             auto start = std::find_if(edges.begin(), b.end(),
                 [threshold](const Edge& e){ return e.timestamp >= threshold; });
             Batch filtered(start, b.end(), *this);
             return make_shared<DeduplicatedBatch>(filtered);
         }
-        default: assert(0);
+        default: assert(0); return nullptr;
     }
 }
 

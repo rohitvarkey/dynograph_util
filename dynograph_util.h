@@ -14,8 +14,6 @@
 
 namespace DynoGraph {
 
-const std::string msg = "[DynoGraph] ";
-
 struct Args
 {
     std::vector<std::string> alg_names;
@@ -212,6 +210,37 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
     return sources;
 }
 
+class Logger
+{
+protected:
+    const std::string msg = "[DynoGraph] ";
+    std::ostream &out;
+    std::ostringstream oss;
+    Logger (std::ostream &out);
+public:
+    // Print to error stream with prefix
+    template <class T>
+    Logger& operator<<(T&& x) {
+#ifdef USE_MPI
+        // Only print logging statements in rank 0 to keep output clean
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (rank != 0) { return *this; }
+#endif
+        oss << std::forward<T>(x);
+        // Once we have a full line, print with prefix
+        if (oss.str().back() == '\n') {
+            out << msg << oss.str();
+            oss.str("");
+        }
+        return *this;
+    }
+    // Handle IO manipulators
+    Logger& operator<<(std::ostream& (*manip)(std::ostream&));
+    // Singleton getter
+    static Logger& get_instance();
+};
+
 template<typename graph_t>
 void
 run(int argc, char **argv)
@@ -222,6 +251,7 @@ run(int argc, char **argv)
     DynoGraph::Args args(argc, argv);
     // Load graph data in from the file in batches
     DynoGraph::Dataset dataset(args);
+    DynoGraph::Logger &logger = DynoGraph::Logger::get_instance();
     Hooks& hooks = Hooks::getInstance();
 
     for (int64_t trial = 0; trial < args.num_trials; trial++)
@@ -241,23 +271,35 @@ run(int argc, char **argv)
             int64_t threshold = dataset.getTimestampForWindow(batch_id);
             graph.before_batch(*batch, threshold);
 
+            hooks.set_stat("num_vertices", graph.get_num_vertices());
+            hooks.set_stat("num_edges", graph.get_num_edges());
+
             if (args.enable_deletions)
             {
-                std::cerr << msg << "Deleting edges older than " << threshold << "\n";
+                logger << "Deleting edges older than " << threshold << "\n";
                 hooks.region_begin("deletions");
                 graph.delete_edges_older_than(threshold);
                 hooks.region_end();
             }
 
-            std::cerr << msg << "Inserting batch " << batch_id << "\n";
+            hooks.set_stat("num_vertices", graph.get_num_vertices());
+            hooks.set_stat("num_edges", graph.get_num_edges());
+
+            logger << "Inserting batch " << batch_id << "\n";
             hooks.region_begin("insertions");
             graph.insert_batch(*batch);
             hooks.region_end();
 
+            hooks.set_stat("num_vertices", graph.get_num_vertices());
+            hooks.set_stat("num_edges", graph.get_num_edges());
+
             for (std::string alg_name : args.alg_names)
             {
                 std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
-                std::cerr << msg << "Running " << alg_name << "\n";
+                if (sources.size() == 1) {
+                    hooks.set_stat("source_vertex", sources[0]);
+                }
+                logger << "Running " << alg_name << "\n";
                 hooks.region_begin(alg_name);
                 graph.update_alg(alg_name, sources);
                 hooks.region_end();
@@ -266,6 +308,7 @@ run(int argc, char **argv)
             // Clear out the graph between batches in snapshot mode
             if (args.sort_mode == DynoGraph::Args::SNAPSHOT)
             {
+                logger << "Reinitializing graph\n";
                 // graph = graph_t(dataset, args) is no good here,
                 // because this would allocate a new graph before deallocating the old one.
                 // We probably won't have enough memory for that.
