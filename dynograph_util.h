@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <sstream>
 #include <iostream>
 #include <algorithm>
 #include <assert.h>
