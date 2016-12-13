@@ -476,3 +476,8 @@ Logger::operator<<(std::ostream& (*manip)(std::ostream&)) {
     return *this;
 }
 
+Logger::~Logger() {
+    // Flush remaining buffered output in case of forgotten newline
+    if (oss.str().size() > 0) { out << msg << oss.str(); }
+}
+

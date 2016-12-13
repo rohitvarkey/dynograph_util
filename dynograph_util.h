@@ -240,6 +240,7 @@ public:
     Logger& operator<<(std::ostream& (*manip)(std::ostream&));
     // Singleton getter
     static Logger& get_instance();
+    virtual ~Logger();
 };
 
 template<typename graph_t>
