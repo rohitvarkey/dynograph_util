@@ -236,6 +236,17 @@ int64_t Batch::num_vertices_affected() const
     return sorted.num_vertices_affected();
 }
 
+const Edge &
+Batch::operator[](size_t i) const {
+    assert(begin_iter + i < end_iter);
+    return *(begin_iter + i);
+}
+
+size_t
+Batch::size() const {
+    return std::distance(begin_iter, end_iter);
+}
+
 // Implementation of DynoGraph::DeduplicatedBatch
 
 DeduplicatedBatch::DeduplicatedBatch(const Batch &batch)

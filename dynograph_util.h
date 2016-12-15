@@ -70,6 +70,8 @@ public:
     const Dataset& dataset;
     Batch(iterator begin, iterator end, const Dataset &dataset);
     virtual int64_t num_vertices_affected() const;
+    const Edge& operator[] (size_t i) const;
+    size_t size() const;
 };
 
 class DeduplicatedBatch : public Batch
