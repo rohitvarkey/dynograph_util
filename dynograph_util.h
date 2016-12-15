@@ -17,8 +17,15 @@ namespace DynoGraph {
 
 struct Args
 {
-    std::vector<std::string> alg_names;
+    // Number of epochs in the benchmark
+    int64_t num_epochs;
+    // File path for edge list to load
     std::string input_path;
+    // Number of edges to insert in each batch of insertions
+    int64_t batch_size;
+    // Algorithms to run after each epoch
+    std::vector<std::string> alg_names;
+    // Batch sort mode:
     enum SORT_MODE {
         // Do not pre-sort batches
         UNSORTED,
@@ -27,12 +34,15 @@ struct Args
         // Each batch is a cumulative snapshot of all edges in previous batches
         SNAPSHOT
     } sort_mode;
-    int64_t window_size;
-    int64_t num_batches;
+    // Percentage of the graph to hold in memory (TODO measure by # of edges or time?)
+    double window_size;
+    // Number of times to repeat the benchmark
     int64_t num_trials;
-    int64_t enable_deletions;
 
+    Args() = default;
     Args(int argc, char **argv);
+    void validate();
+    void print_help();
 };
 
 struct Edge
@@ -76,11 +86,10 @@ class Dataset
 private:
     void loadEdgesBinary(std::string path);
     void loadEdgesAscii(std::string path);
-    void initBatchIterators();
 
     Args args;
     bool directed;
-    int64_t maxNumVertices;
+    int64_t max_num_vertices;
 
 public:
 
@@ -88,7 +97,6 @@ public:
     std::vector<Batch> batches;
 
     Dataset(Args args);
-    Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices);
 
     int64_t getTimestampForWindow(int64_t batchId) const;
     std::shared_ptr<Batch> getBatch(int64_t batchId) const;
@@ -98,6 +106,8 @@ public:
 
     std::vector<Batch>::const_iterator begin() const;
     std::vector<Batch>::const_iterator end() const;
+
+    bool enableAlgsForBatch(int64_t i);
 };
 
 class DynamicGraph
@@ -276,7 +286,7 @@ run(int argc, char **argv)
             hooks.set_stat("num_vertices", graph.get_num_vertices());
             hooks.set_stat("num_edges", graph.get_num_edges());
 
-            if (args.enable_deletions)
+            if (args.window_size != 1.0)
             {
                 logger << "Deleting edges older than " << threshold << "\n";
                 hooks.region_begin("deletions");
@@ -295,16 +305,18 @@ run(int argc, char **argv)
             hooks.set_stat("num_vertices", graph.get_num_vertices());
             hooks.set_stat("num_edges", graph.get_num_edges());
 
-            for (std::string alg_name : args.alg_names)
-            {
-                std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
-                if (sources.size() == 1) {
-                    hooks.set_stat("source_vertex", sources[0]);
+            if (dataset.enableAlgsForBatch(batch_id)) {
+                for (std::string alg_name : args.alg_names)
+                {
+                    std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
+                    if (sources.size() == 1) {
+                        hooks.set_stat("source_vertex", sources[0]);
+                    }
+                    logger << "Running " << alg_name << "\n";
+                    hooks.region_begin(alg_name);
+                    graph.update_alg(alg_name, sources);
+                    hooks.region_end();
                 }
-                logger << "Running " << alg_name << "\n";
-                hooks.region_begin(alg_name);
-                graph.update_alg(alg_name, sources);
-                hooks.region_end();
             }
 
             // Clear out the graph between batches in snapshot mode
@@ -321,5 +333,8 @@ run(int argc, char **argv)
         }
     }
 }
+
+// Terminate the benchmark in the event of an error
+void die();
 
 }; // end namespace DynoGraph

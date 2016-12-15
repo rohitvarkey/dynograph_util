@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <sstream>
 #include <algorithm>
+#include <string>
+#include <getopt.h>
 
 #if defined(USE_MPI)
 #include <mpi.h>
@@ -37,39 +39,122 @@ vector<string> split(const string &s, char delim) {
     return elems;
 }
 
+static option long_options[] = {
+    {"num-epochs" , required_argument, 0, 0},
+    {"input-path" , required_argument, 0, 0},
+    {"batch-size" , required_argument, 0, 0},
+    {"alg-names"  , required_argument, 0, 0},
+    {"sort-mode"  , required_argument, 0, 0},
+    {"window-size", required_argument, 0, 0},
+    {"num-trials" , required_argument, 0, 0},
+    {"help"       , no_argument, 0, 0},
+};
+
 Args::Args(int argc, char *argv[])
 {
     Logger &logger = Logger::get_instance();
-    if (argc != 7)
+
+    // Set invalid values for required arguments
+    num_epochs = -1;
+    input_path = "";
+    batch_size = -1;
+
+    // Set defaults for optional arguments
+    alg_names.clear();
+    sort_mode = UNSORTED;
+    window_size = 1.0;
+    num_trials = 1;
+
+    // Parse arguments
+    int option_index;
+    while (1)
     {
-        logger << "Usage: alg_name sort_mode input_path num_batches window_size num_trials \n";
-        exit(-1);
+        int c = getopt_long(argc, argv, "", long_options, &option_index);
+
+        // Done parsing
+        if (c == -1) { break; }
+        // Parse error
+        if (c == '?') {
+            logger << "Invalid arguments\n";
+            print_help();
+            die();
+        }
+        string option_name = long_options[option_index].name;
+
+        if (option_name == "num-epochs") {
+            num_epochs = static_cast<int64_t>(std::stoll(optarg));
+
+        } else if (option_name == "alg-names") {
+            std::string alg_str = optarg;
+            alg_names = split(alg_str, ' ');
+
+        } else if (option_name == "input-path") {
+            input_path = optarg;
+
+        } else if (option_name == "batch-size") {
+            batch_size = static_cast<int64_t>(std::stoll(optarg));
+
+        } else if (option_name == "sort-mode") {
+            std::string sort_mode_str = optarg;
+            if      (sort_mode_str == "unsorted") { sort_mode = UNSORTED; }
+            else if (sort_mode_str == "presort")  { sort_mode = PRESORT;  }
+            else if (sort_mode_str == "snapshot") { sort_mode = SNAPSHOT; }
+            else {
+                logger << "sort-mode must be one of ['unsorted', 'presort', 'snapshot']\n";
+                die();
+            }
+
+        } else if (option_name == "window-size") {
+            window_size = std::stod(optarg);
+
+        } else if (option_name == "num-trials") {
+            num_trials = static_cast<int64_t>(std::stoll(optarg));
+
+        } else if (option_name == "help") {
+            print_help();
+            die();
+        }
     }
 
-    std::string alg_str = argv[1];
-    alg_names = split(alg_str, ' ');
-    std::string sort_mode_str = argv[2];
-    input_path = argv[3];
-    num_batches = atoll(argv[4]);
-    window_size = atoll(argv[5]);
-    num_trials = atoll(argv[6]);
+    validate();
+}
 
-    if (num_batches < 1 || window_size < 1 || num_trials < 1)
+void
+Args::validate()
+{
+    std::ostringstream oss;
+    if (num_epochs < 1) {
+        oss << "\t--num-epochs must be positive\n";
+    }
+    if (input_path.empty()) {
+        oss << "\t--input-path cannot be empty\n";
+    }
+    if (batch_size < 1) {
+        oss << "\t--batch-size must be positive\n";
+    }
+    if (window_size < 0 || window_size > 1) {
+        oss << "\t--window-size must be in the range [0.0, 1.0]\n";
+    }
+    if (num_trials < 1) {
+        oss << "\t--num-trials must be positive\n";
+    }
+    if (!oss.str().empty()) {
+        Logger::get_instance() << "Invalid arguments:\n" + oss.str();
+        print_help();
+        die();
+    }
+}
+
+void
+Args::print_help(){
+    Logger &logger = Logger::get_instance();
+    std::ostringstream oss;
+    oss << "Usage: \n";
+    for (option &o : long_options)
     {
-        logger << "num_batches, window_size, and num_trials must be positive\n";
-        exit(-1);
+        oss << "\t--" << o.name << "\n";
     }
-
-    enable_deletions = (window_size != num_batches);
-
-    if      (sort_mode_str == "unsorted") { sort_mode = UNSORTED; }
-    else if (sort_mode_str == "presort")  { sort_mode = PRESORT;  }
-    else if (sort_mode_str == "snapshot") { sort_mode = SNAPSHOT; }
-    else {
-        logger << "sort_mode must be one of ['unsorted', 'presort', 'snapshot']\n";
-        exit(-1);
-    }
-
+    logger << oss.str();
 }
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
@@ -100,7 +185,7 @@ count_lines(string path)
     if (fp == NULL)
     {
         logger << "Failed to open " << path << "\n";
-        exit(-1);
+        die();
     }
     int64_t lines = 0;
     while(!feof(fp))
@@ -187,22 +272,6 @@ bool has_suffix(const std::string &str, const std::string &suffix)
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-void Dataset::initBatchIterators()
-{
-    // Intentionally rounding down here
-    // TODO variable number of edges per batch
-    int64_t edges_per_batch = edges.size() / args.num_batches;
-
-    // Store iterators to the beginning and end of each batch
-    for (int i = 0; i < args.num_batches; ++i)
-    {
-        size_t offset = i * edges_per_batch;
-        auto begin = edges.begin() + offset;
-        auto end = edges.begin() + offset + edges_per_batch;
-        batches.push_back(Batch(begin, end, *this));
-    }
-}
-
 int64_t getMaxVertexId(std::vector<Edge> &edges)
 {
     int64_t max_nv = 0;
@@ -214,13 +283,6 @@ int64_t getMaxVertexId(std::vector<Edge> &edges)
         if (e.dst > max_nv) { max_nv = e.dst; }
     }
     return max_nv;
-}
-
-// This version is only used by Boost right now, to create a smaller dataset from a bigger one
-Dataset::Dataset(std::vector<Edge> edges, Args& args, int64_t maxNumVertices)
-: args(args), directed(true), maxNumVertices(maxNumVertices), edges(edges)
-{
-    initBatchIterators();
 }
 
 Dataset::Dataset(Args args)
@@ -241,11 +303,31 @@ Dataset::Dataset(Args args)
         loadEdgesAscii(args.input_path);
     } else {
         logger << "Unrecognized file extension for " << args.input_path << "\n";
-        exit(-1);
+        die();
+    }
+
+    // Intentionally rounding down to make it divide evenly
+    int64_t num_batches = edges.size() / args.batch_size;
+
+    // Sanity check on arguments
+    if (args.batch_size > edges.size())
+    {
+        logger << "Invalid arguments: batch size (" << args.batch_size << ") "
+               << "cannot be larger than the total number of edges in the dataset "
+               << " (" << edges.size() << ")\n";
+        die();
+    }
+
+    if (args.num_epochs > num_batches)
+    {
+        logger << "Invalid arguments: number of epochs (" << args.num_epochs << ") "
+               << "cannot be greater than the number of batches in the dataset "
+               << "(" << num_batches << ")\n";
+        die();
     }
 
     // Could save work by counting max vertex id while loading edges, but easier to just do it here
-    maxNumVertices = getMaxVertexId(edges) + 1;
+    max_num_vertices = getMaxVertexId(edges) + 1;
 
 #if defined(USE_MPI)
         logger << "Distributing dataset to " << comm_size << " ranks...\n";
@@ -256,7 +338,7 @@ Dataset::Dataset(Args args)
     edges.clear();
 
     // Send max_nv to all ranks
-    MPI_Bcast(&maxNumVertices, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&max_num_vertices, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
 
     /*
      * Now we need to distribute the edges to each process in the group
@@ -326,8 +408,17 @@ Dataset::Dataset(Args args)
         local_slice_begin += local_slice_size;
     }
 #endif
-    
-    initBatchIterators();
+
+    // Store iterators to the beginning and end of each batch
+    // NOTE In the MPI case, edges_per_batch != batch_size, because we have divided the edges between ranks
+    int64_t edges_per_batch = edges.size() / num_batches;
+    for (int i = 0; i < num_batches; ++i)
+    {
+        size_t offset = i * edges_per_batch;
+        auto begin = edges.begin() + offset;
+        auto end = edges.begin() + offset + args.batch_size;
+        batches.push_back(Batch(begin, end, *this));
+    }
 }
 
 void
@@ -340,7 +431,7 @@ Dataset::loadEdgesBinary(string path)
     if (stat(path.c_str(), &st) != 0)
     {
         logger << "Failed to stat " << path << "\n";
-        exit(-1);
+        die();
     }
     int64_t numEdges = st.st_size / sizeof(Edge);
 
@@ -355,7 +446,7 @@ Dataset::loadEdgesBinary(string path)
     if (rc != static_cast<size_t>(numEdges))
     {
         logger << "Failed to load graph from " << path << "\n";
-        exit(-1);
+        die();
     }
     fclose(fp);
 }
@@ -436,13 +527,25 @@ Dataset::isDirected() const
 int64_t
 Dataset::getMaxNumVertices() const
 {
-    return maxNumVertices;
+    return max_num_vertices;
 }
 
 std::vector<Batch>::const_iterator
 Dataset::begin() const { return batches.cbegin(); }
 std::vector<Batch>::const_iterator
 Dataset::end() const { return batches.cend(); }
+
+bool
+Dataset::enableAlgsForBatch(int64_t batch_id) {
+    // How many batches in each epoch, on average?
+    double batches_per_epoch = batches.size() / static_cast<double>(args.num_epochs);
+    // How many algs run before this batch?
+    int64_t batches_before = static_cast<int64_t>(std::floor(batch_id / batches_per_epoch));
+    // How many algs should run after this batch?
+    int64_t batches_after = static_cast<int64_t>(std::floor((batch_id + 1) / batches_per_epoch));
+    // If the count changes between this batch and the next, we should run an alg now
+    return (batches_after - batches_before) > 0;
+}
 
 // Partial implementation of DynamicGraph
 
@@ -481,3 +584,8 @@ Logger::~Logger() {
     if (oss.str().size() > 0) { out << msg << oss.str(); }
 }
 
+void
+DynoGraph::die()
+{
+    exit(-1);
+}
