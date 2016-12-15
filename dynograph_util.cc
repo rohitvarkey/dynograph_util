@@ -39,7 +39,7 @@ vector<string> split(const string &s, char delim) {
     return elems;
 }
 
-static option long_options[] = {
+static const option long_options[] = {
     {"num-epochs" , required_argument, 0, 0},
     {"input-path" , required_argument, 0, 0},
     {"batch-size" , required_argument, 0, 0},
@@ -49,6 +49,34 @@ static option long_options[] = {
     {"num-trials" , required_argument, 0, 0},
     {"help"       , no_argument, 0, 0},
 };
+
+static const std::pair<string, string> option_descriptions[] = {
+    {"num-epochs" , "Number of epochs (algorithm updates) in the benchmark"},
+    {"input-path" , "File path to the graph edge list to load (.graph.el or .graph.bin)"},
+    {"batch-size" , "Number of edges in each batch of insertions"},
+    {"alg-names"  , "Algorithms to run in each epoch"},
+    {"sort-mode"  , "Controls batch pre-processing: \n"
+                    "\t\tunsorted (no preprocessing, default),\n"
+                    "\t\tpresort (sort and deduplicate before insert), or\n "
+                    "\t\tsnapshot (clear out graph and reconstruct for each batch)"},
+    {"window-size", "Percentage of the graph to hold in memory (computed using timestamps) "},
+    {"num-trials" , "Number of times to repeat the benchmark"},
+    {"help"       , "Print help"},
+};
+
+void
+Args::print_help(string argv0){
+    Logger &logger = Logger::get_instance();
+    stringstream oss;
+    oss << "Usage: " << argv0 << " [OPTIONS]\n";
+    for (auto &o : option_descriptions)
+    {
+        const string &name = o.first;
+        const string &desc = o.second;
+        oss << "\t--" << name << "\t" << desc << "\n";
+    }
+    logger << oss.str();
+}
 
 Args::Args(int argc, char *argv[])
 {
@@ -76,7 +104,7 @@ Args::Args(int argc, char *argv[])
         // Parse error
         if (c == '?') {
             logger << "Invalid arguments\n";
-            print_help();
+            print_help(argv[0]);
             die();
         }
         string option_name = long_options[option_index].name;
@@ -111,18 +139,24 @@ Args::Args(int argc, char *argv[])
             num_trials = static_cast<int64_t>(std::stoll(optarg));
 
         } else if (option_name == "help") {
-            print_help();
+            print_help(argv[0]);
             die();
         }
     }
 
-    validate();
+    string message = validate();
+    if (!message.empty())
+    {
+        logger << "Invalid arguments:\n" + message;
+        print_help(argv[0]);
+        die();
+    }
 }
 
-void
+string
 Args::validate()
 {
-    std::ostringstream oss;
+    stringstream oss;
     if (num_epochs < 1) {
         oss << "\t--num-epochs must be positive\n";
     }
@@ -138,23 +172,7 @@ Args::validate()
     if (num_trials < 1) {
         oss << "\t--num-trials must be positive\n";
     }
-    if (!oss.str().empty()) {
-        Logger::get_instance() << "Invalid arguments:\n" + oss.str();
-        print_help();
-        die();
-    }
-}
-
-void
-Args::print_help(){
-    Logger &logger = Logger::get_instance();
-    std::ostringstream oss;
-    oss << "Usage: \n";
-    for (option &o : long_options)
-    {
-        oss << "\t--" << o.name << "\n";
-    }
-    logger << oss.str();
+    return oss.str();
 }
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)

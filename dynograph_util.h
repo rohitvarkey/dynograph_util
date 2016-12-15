@@ -41,8 +41,8 @@ struct Args
 
     Args() = default;
     Args(int argc, char **argv);
-    void validate();
-    void print_help();
+    std::string validate();
+    void print_help(std::string argv0);
 };
 
 struct Edge
