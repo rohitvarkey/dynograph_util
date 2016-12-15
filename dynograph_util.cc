@@ -301,19 +301,6 @@ bool has_suffix(const std::string &str, const std::string &suffix)
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-int64_t getMaxVertexId(std::vector<Edge> &edges)
-{
-    int64_t max_nv = 0;
-    #pragma omp parallel for reduction (max : max_nv)
-    for (size_t i = 0; i < edges.size(); ++i)
-    {
-        Edge &e = edges[i];
-        if (e.src > max_nv) { max_nv = e.src; }
-        if (e.dst > max_nv) { max_nv = e.dst; }
-    }
-    return max_nv;
-}
-
 Dataset::Dataset(Args args)
 : args(args), directed(true)
 {
@@ -355,19 +342,34 @@ Dataset::Dataset(Args args)
         die();
     }
 
-    // Could save work by counting max vertex id while loading edges, but easier to just do it here
-    max_num_vertices = getMaxVertexId(edges) + 1;
+    // Calculate max vertex id so engines can statically provision the vertex array
+    auto max_edge = std::max_element(edges.begin(), edges.end(),
+        [](const Edge& a, const Edge& b) { return std::max(a.src, a.dst) < std::max(b.src, b.dst); });
+    max_num_vertices = std::max(max_edge->src, max_edge->dst);
+
+    // Make sure edges are sorted by timestamp, and save min/max timestamp
+    if (!std::is_sorted(edges.begin(), edges.end(),
+        [](const Edge& a, const Edge& b) { return a.timestamp < b.timestamp; }))
+    {
+        logger << "Invalid dataset: edges not sorted by timestamp\n";
+        die();
+    }
+
+    min_timestamp = edges.front().timestamp;
+    max_timestamp = edges.back().timestamp;
 
 #if defined(USE_MPI)
         logger << "Distributing dataset to " << comm_size << " ranks...\n";
     }
 
+    // Synchronize member variables across ranks
+    MPI_Bcast(&max_num_vertices, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&min_timestamp, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&max_timestamp, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+
     // Move the edges out of rank 0's member variable
     vector<Edge> all_edges = std::move(edges);
     edges.clear();
-
-    // Send max_nv to all ranks
-    MPI_Bcast(&max_num_vertices, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
 
     /*
      * Now we need to distribute the edges to each process in the group
@@ -503,20 +505,41 @@ Dataset::loadEdgesAscii(string path)
     fclose(fp);
 }
 
+// Round down to nearest integer
+static int64_t
+round_down(double x)
+{
+    return static_cast<int64_t>(std::floor(x));
+}
+
+// Divide two integers with double result
+static double
+true_div(int64_t x, int64_t y)
+{
+    return static_cast<double>(x) / static_cast<double>(y);
+}
+
 int64_t
 Dataset::getTimestampForWindow(int64_t batchId) const
 {
-    int64_t modifiedAfter = INT64_MIN;
-    if (batchId > args.window_size)
-    {
-        // Intentionally rounding down here
-        // TODO variable number of edges per batch
-        int64_t edges_per_batch = edges.size() / batches.size();
-        int64_t startEdge = (batchId - args.window_size) * edges_per_batch;
-        modifiedAfter = edges[startEdge].timestamp;
-    }
-    return modifiedAfter;
+    // Calculate width of timestamp window
+    int64_t window_time = round_down(args.window_size * (max_timestamp - min_timestamp));
+    // Get the timestamp of the last edge in the current batch
+    int64_t latest_time = batches[batchId][args.batch_size - 1].timestamp;
+    return std::max(min_timestamp, latest_time - window_time);
 };
+
+bool
+Dataset::enableAlgsForBatch(int64_t batch_id) const {
+    // How many batches in each epoch, on average?
+    double batches_per_epoch = true_div(batches.size(), args.num_epochs);
+    // How many algs run before this batch?
+    int64_t batches_before = round_down(true_div(batch_id, batches_per_epoch));
+    // How many algs should run after this batch?
+    int64_t batches_after = round_down(true_div((batch_id + 1), batches_per_epoch));
+    // If the count changes between this batch and the next, we should run an alg now
+    return (batches_after - batches_before) > 0;
+}
 
 shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId) const
@@ -563,18 +586,6 @@ std::vector<Batch>::const_iterator
 Dataset::begin() const { return batches.cbegin(); }
 std::vector<Batch>::const_iterator
 Dataset::end() const { return batches.cend(); }
-
-bool
-Dataset::enableAlgsForBatch(int64_t batch_id) {
-    // How many batches in each epoch, on average?
-    double batches_per_epoch = batches.size() / static_cast<double>(args.num_epochs);
-    // How many algs run before this batch?
-    int64_t batches_before = static_cast<int64_t>(std::floor(batch_id / batches_per_epoch));
-    // How many algs should run after this batch?
-    int64_t batches_after = static_cast<int64_t>(std::floor((batch_id + 1) / batches_per_epoch));
-    // If the count changes between this batch and the next, we should run an alg now
-    return (batches_after - batches_before) > 0;
-}
 
 // Partial implementation of DynamicGraph
 

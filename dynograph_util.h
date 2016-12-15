@@ -92,6 +92,8 @@ private:
     Args args;
     bool directed;
     int64_t max_num_vertices;
+    int64_t min_timestamp;
+    int64_t max_timestamp;
 
 public:
 
@@ -109,7 +111,7 @@ public:
     std::vector<Batch>::const_iterator begin() const;
     std::vector<Batch>::const_iterator end() const;
 
-    bool enableAlgsForBatch(int64_t i);
+    bool enableAlgsForBatch(int64_t i) const;
 };
 
 class DynamicGraph
