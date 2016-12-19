@@ -65,10 +65,8 @@ class Dataset;
 
 class Batch
 {
-protected:
-    typedef std::vector<Edge>::const_iterator iterator;
-    iterator begin_iter, end_iter;
 public:
+    typedef std::vector<Edge>::const_iterator iterator;
     iterator begin() const;
     iterator end() const;
     Batch(iterator begin, iterator end);
@@ -76,6 +74,8 @@ public:
     const Edge& operator[] (size_t i) const;
     size_t size() const;
     bool is_directed() const;
+protected:
+    iterator begin_iter, end_iter;
 };
 
 class DeduplicatedBatch : public Batch
