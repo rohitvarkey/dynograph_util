@@ -246,8 +246,8 @@ count_lines(string path)
 
 // Implementation of DynoGraph::Batch
 
-Batch::Batch(iterator begin, iterator end, const Dataset &dataset )
- : begin_iter(begin), end_iter(end), dataset(dataset) {}
+Batch::Batch(iterator begin, iterator end)
+ : begin_iter(begin), end_iter(end) {}
 
 Batch::iterator
 Batch::begin() const { return begin_iter; }
@@ -272,6 +272,12 @@ size_t
 Batch::size() const {
     return std::distance(begin_iter, end_iter);
 }
+
+bool
+Batch::is_directed() const {
+    return true;
+}
+
 
 // Implementation of DynoGraph::DeduplicatedBatch
 
@@ -474,7 +480,7 @@ Dataset::Dataset(Args args)
         size_t offset = i * edges_per_batch;
         auto begin = edges.begin() + offset;
         auto end = edges.begin() + offset + args.batch_size;
-        batches.push_back(Batch(begin, end, *this));
+        batches.push_back(Batch(begin, end));
     }
 }
 
@@ -589,7 +595,7 @@ Dataset::getBatch(int64_t batchId) const
             int64_t threshold = getTimestampForWindow(batchId);
             auto start = std::find_if(edges.begin(), b.end(),
                 [threshold](const Edge& e){ return e.timestamp >= threshold; });
-            Batch filtered(start, b.end(), *this);
+            Batch filtered(start, b.end());
             return make_shared<DeduplicatedBatch>(filtered);
         }
         default: assert(0); return nullptr;

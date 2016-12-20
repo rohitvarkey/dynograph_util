@@ -71,11 +71,11 @@ protected:
 public:
     iterator begin() const;
     iterator end() const;
-    const Dataset& dataset;
-    Batch(iterator begin, iterator end, const Dataset &dataset);
+    Batch(iterator begin, iterator end);
     virtual int64_t num_vertices_affected() const;
     const Edge& operator[] (size_t i) const;
     size_t size() const;
+    bool is_directed() const;
 };
 
 class DeduplicatedBatch : public Batch
