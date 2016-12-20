@@ -557,7 +557,8 @@ Dataset::getTimestampForWindow(int64_t batchId) const
     // Calculate width of timestamp window
     int64_t window_time = round_down(args.window_size * (max_timestamp - min_timestamp));
     // Get the timestamp of the last edge in the current batch
-    int64_t latest_time = batches[batchId][args.batch_size - 1].timestamp;
+    int64_t latest_time = (batches[batchId].end()-1)->timestamp;
+
     return std::max(min_timestamp, latest_time - window_time);
 };
 
