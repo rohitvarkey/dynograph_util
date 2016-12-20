@@ -78,22 +78,15 @@ Args::print_help(string argv0){
     logger << oss.str();
 }
 
-Args::Args(int argc, char *argv[])
+Args
+Args::parse(int argc, char *argv[])
 {
     Logger &logger = Logger::get_instance();
+    Args args;
+    args.sort_mode = Args::SORT_MODE::UNSORTED;
+    args.window_size = 1.0;
+    args.num_trials = 1;
 
-    // Set invalid values for required arguments
-    num_epochs = -1;
-    input_path = "";
-    batch_size = -1;
-
-    // Set defaults for optional arguments
-    alg_names.clear();
-    sort_mode = UNSORTED;
-    window_size = 1.0;
-    num_trials = 1;
-
-    // Parse arguments
     int option_index;
     while (1)
     {
@@ -110,33 +103,33 @@ Args::Args(int argc, char *argv[])
         string option_name = long_options[option_index].name;
 
         if (option_name == "num-epochs") {
-            num_epochs = static_cast<int64_t>(std::stoll(optarg));
+            args.num_epochs = static_cast<int64_t>(std::stoll(optarg));
 
         } else if (option_name == "alg-names") {
             std::string alg_str = optarg;
-            alg_names = split(alg_str, ' ');
+            args.alg_names = split(alg_str, ' ');
 
         } else if (option_name == "input-path") {
-            input_path = optarg;
+            args.input_path = optarg;
 
         } else if (option_name == "batch-size") {
-            batch_size = static_cast<int64_t>(std::stoll(optarg));
+            args.batch_size = static_cast<int64_t>(std::stoll(optarg));
 
         } else if (option_name == "sort-mode") {
             std::string sort_mode_str = optarg;
-            if      (sort_mode_str == "unsorted") { sort_mode = UNSORTED; }
-            else if (sort_mode_str == "presort")  { sort_mode = PRESORT;  }
-            else if (sort_mode_str == "snapshot") { sort_mode = SNAPSHOT; }
+            if      (sort_mode_str == "unsorted") { args.sort_mode = Args::SORT_MODE::UNSORTED; }
+            else if (sort_mode_str == "presort")  { args.sort_mode = Args::SORT_MODE::PRESORT;  }
+            else if (sort_mode_str == "snapshot") { args.sort_mode = Args::SORT_MODE::SNAPSHOT; }
             else {
                 logger << "sort-mode must be one of ['unsorted', 'presort', 'snapshot']\n";
                 die();
             }
 
         } else if (option_name == "window-size") {
-            window_size = std::stod(optarg);
+            args.window_size = std::stod(optarg);
 
         } else if (option_name == "num-trials") {
-            num_trials = static_cast<int64_t>(std::stoll(optarg));
+            args.num_trials = static_cast<int64_t>(std::stoll(optarg));
 
         } else if (option_name == "help") {
             print_help(argv[0]);
@@ -144,17 +137,18 @@ Args::Args(int argc, char *argv[])
         }
     }
 
-    string message = validate();
+    string message = args.validate();
     if (!message.empty())
     {
         logger << "Invalid arguments:\n" + message;
         print_help(argv[0]);
         die();
     }
+    return args;
 }
 
 string
-Args::validate()
+Args::validate() const
 {
     stringstream oss;
     if (num_epochs < 1) {
@@ -174,6 +168,38 @@ Args::validate()
     }
     return oss.str();
 }
+
+std::ostream&
+DynoGraph::operator <<(std::ostream& os, Args::SORT_MODE sort_mode)
+{
+    switch (sort_mode) {
+        case Args::SORT_MODE::UNSORTED: os << "unsorted"; break;
+        case Args::SORT_MODE::PRESORT: os << "presort"; break;
+        case Args::SORT_MODE::SNAPSHOT: os << "snapshot"; break;
+        default: assert(0);
+    }
+    return os;
+}
+
+std::ostream&
+DynoGraph::operator <<(std::ostream& os, const Args& args)
+{
+    os  << "{"
+        << "\"num_epochs\":"  << args.num_epochs << ","
+        << "\"input_path\":\""  << args.input_path << "\","
+        << "\"batch_size\":"  << args.batch_size << ","
+        << "\"window_size\":" << args.window_size << ","
+        << "\"num_trials\":"  << args.num_trials << ","
+        << "\"sort_mode\":\""   << args.sort_mode << "\",";
+
+    os << "\"alg_names\":[";
+    for (int i = 0; i < args.alg_names.size(); ++i) {
+        if (i != 0) { os << ","; }
+        os << "\"" << args.alg_names[i] << "\"";
+    }
+    os << "]}";
+    return os;
+};
 
 bool DynoGraph::operator<(const Edge& a, const Edge& b)
 {
@@ -548,16 +574,16 @@ Dataset::getBatch(int64_t batchId) const
     const Batch & b = batches[batchId];
     switch (args.sort_mode)
     {
-        case Args::UNSORTED:
+        case Args::SORT_MODE::UNSORTED:
         {
             return make_shared<Batch>(b);
         }
-        case Args::PRESORT:
+        case Args::SORT_MODE::PRESORT:
         {
             logger << "Presorting batch " << batchId << "...\n";
             return make_shared<DeduplicatedBatch>(b);
         }
-        case Args::SNAPSHOT:
+        case Args::SORT_MODE::SNAPSHOT:
         {
             logger << "Generating snapshot for batch " << batchId << "...\n";
             int64_t threshold = getTimestampForWindow(batchId);

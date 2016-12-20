@@ -26,7 +26,7 @@ struct Args
     // Algorithms to run after each epoch
     std::vector<std::string> alg_names;
     // Batch sort mode:
-    enum SORT_MODE {
+    enum class SORT_MODE {
         // Do not pre-sort batches
         UNSORTED,
         // Sort and deduplicate each batch before returning it
@@ -34,16 +34,20 @@ struct Args
         // Each batch is a cumulative snapshot of all edges in previous batches
         SNAPSHOT
     } sort_mode;
-    // Percentage of the graph to hold in memory (TODO measure by # of edges or time?)
+    // Percentage of the graph to hold in memory
     double window_size;
     // Number of times to repeat the benchmark
     int64_t num_trials;
 
     Args() = default;
-    Args(int argc, char **argv);
-    std::string validate();
-    void print_help(std::string argv0);
+    std::string validate() const;
+
+    static Args parse(int argc, char **argv);
+    static void print_help(std::string argv0);
 };
+
+std::ostream& operator <<(std::ostream& os, Args::SORT_MODE sort_mode);
+std::ostream& operator <<(std::ostream& os, const Args& args);
 
 struct Edge
 {
@@ -264,7 +268,7 @@ run(int argc, char **argv)
     //static_assert(std::is_base_of<graph_t, DynamicGraph>(), "graph_t must implement DynoGraph::DynamicGraph");
 
     // Process command line arguments
-    DynoGraph::Args args(argc, argv);
+    DynoGraph::Args args = DynoGraph::Args::parse(argc, argv);
     // Load graph data in from the file in batches
     DynoGraph::Dataset dataset(args);
     DynoGraph::Logger &logger = DynoGraph::Logger::get_instance();
@@ -324,7 +328,7 @@ run(int argc, char **argv)
             }
 
             // Clear out the graph between batches in snapshot mode
-            if (args.sort_mode == DynoGraph::Args::SNAPSHOT)
+            if (args.sort_mode == DynoGraph::Args::SORT_MODE::SNAPSHOT)
             {
                 logger << "Reinitializing graph\n";
                 // graph = graph_t(dataset, args) is no good here,
