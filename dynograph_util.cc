@@ -82,7 +82,7 @@ Args
 Args::parse(int argc, char *argv[])
 {
     Logger &logger = Logger::get_instance();
-    Args args;
+    Args args = {};
     args.sort_mode = Args::SORT_MODE::UNSORTED;
     args.window_size = 1.0;
     args.num_trials = 1;
