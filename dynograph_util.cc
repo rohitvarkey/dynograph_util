@@ -622,8 +622,8 @@ Dataset::end() const { return batches.cend(); }
 
 // Partial implementation of DynamicGraph
 
-DynamicGraph::DynamicGraph(const Dataset& dataset, const Args& args)
-: dataset(dataset), args(args) {}
+DynamicGraph::DynamicGraph(const Args& args, int64_t max_nv)
+: args(args) {}
 
 // Implementation of vertex_degree
 vertex_degree::vertex_degree() {}

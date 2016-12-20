@@ -121,11 +121,12 @@ public:
 class DynamicGraph
 {
 protected:
-    const Dataset& dataset;
     const Args& args;
 public:
     // Initialize the graph - your constructor must match this signature
-    DynamicGraph(const Dataset& dataset, const Args& args);
+    DynamicGraph(const Args& args, int64_t max_nv);
+    // Return list of supported algs - your class must implement this method
+    static std::vector<std::string> get_supported_algs();
     // Prepare to insert the batch
     virtual void before_batch(const Batch& batch, int64_t threshold) = 0;
     // Delete edges in the graph with a timestamp older than <threshold>
@@ -278,7 +279,7 @@ run(int argc, char **argv)
     {
         hooks.set_attr("trial", trial);
         // Initialize the graph data structure
-        graph_t graph(dataset, args);
+        graph_t graph(args, dataset.getMaxNumVertices());
 
         // Run the algorithm(s) after each inserted batch
         for (int64_t batch_id = 0; batch_id < dataset.batches.size(); ++batch_id)
@@ -336,7 +337,7 @@ run(int argc, char **argv)
                 // We probably won't have enough memory for that.
                 // Instead, use an explicit destructor call followed by placement new
                 graph.~graph_t();
-                new(&graph) graph_t(dataset, args);
+                new(&graph) graph_t(args, dataset.getMaxNumVertices());
             }
         }
     }
