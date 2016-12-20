@@ -22,8 +22,7 @@ find_path(PERFMON_PREFIX
 )
 
 find_library(PERFMON_LIBRARIES
-    # Pick the static library first for easier run-time linking.
-    NAMES libpfm.a
+    NAMES libpfm.so libpfm.a
     HINTS ${PERFMON_PREFIX}/lib
 )
 #set_target_properties(${PERFMON_LIBRARIES} PROPERTIES TYPE "STATIC_LIBRARY")

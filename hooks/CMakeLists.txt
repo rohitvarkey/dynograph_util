@@ -40,7 +40,7 @@ elseif (HOOKS_TYPE STREQUAL "PERF")
 	include_directories(${PERFMON_INCLUDE_DIRS})
 	# pfm_cxx provides a c++ wrapper to the perfmon interface
 	include_directories("perf")
-	add_library(pfm_cxx STATIC perf/pfm_cxx.cpp perf/pfm_cxx.h)
+	add_library(pfm_cxx perf/pfm_cxx.cpp perf/pfm_cxx.h)
 	set(HOOKS_LIBS "${HOOKS_LIBS};pfm_cxx;${PERFMON_LIBRARIES}")
 
 else ()
