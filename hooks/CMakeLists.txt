@@ -62,5 +62,5 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu9x")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-add_library(hooks STATIC hooks.cc hooks.h hooks_c.h)
+add_library(hooks hooks.cc hooks.h hooks_c.h)
 target_link_libraries(hooks ${HOOKS_LIBS})

@@ -3,10 +3,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 add_subdirectory(hooks)
 
-add_library(dynograph_util STATIC dynograph_util.cc)
+add_library(dynograph_util dynograph_util.cc)
 target_compile_definitions(dynograph_util PUBLIC _GLIBCXX_PARALLEL)
-target_link_libraries(hooks)
-target_include_directories(dynograph_util PRIVATE hooks)
+target_link_libraries(dynograph_util hooks)
+target_include_directories(dynograph_util PUBLIC hooks)
 
 if (MPI_FOUND)
   include_directories(${MPI_CXX_INCLUDE_PATH})
