@@ -95,7 +95,7 @@ private:
 
     Args args;
     bool directed;
-    int64_t max_num_vertices;
+    int64_t max_vertex_id;
     int64_t min_timestamp;
     int64_t max_timestamp;
 
@@ -110,7 +110,7 @@ public:
     std::shared_ptr<Batch> getBatch(int64_t batchId) const;
 
     bool isDirected() const;
-    int64_t getMaxNumVertices() const;
+    int64_t getMaxVertexId() const;
 
     std::vector<Batch>::const_iterator begin() const;
     std::vector<Batch>::const_iterator end() const;
@@ -124,7 +124,7 @@ protected:
     const Args& args;
 public:
     // Initialize the graph - your constructor must match this signature
-    DynamicGraph(const Args& args, int64_t max_nv);
+    DynamicGraph(const Args& args, int64_t max_vertex_id);
     // Return list of supported algs - your class must implement this method
     static std::vector<std::string> get_supported_algs();
     // Prepare to insert the batch
@@ -279,7 +279,7 @@ run(int argc, char **argv)
     {
         hooks.set_attr("trial", trial);
         // Initialize the graph data structure
-        graph_t graph(args, dataset.getMaxNumVertices());
+        graph_t graph(args, dataset.getMaxVertexId());
 
         // Run the algorithm(s) after each inserted batch
         for (int64_t batch_id = 0; batch_id < dataset.batches.size(); ++batch_id)
@@ -337,7 +337,7 @@ run(int argc, char **argv)
                 // We probably won't have enough memory for that.
                 // Instead, use an explicit destructor call followed by placement new
                 graph.~graph_t();
-                new(&graph) graph_t(args, dataset.getMaxNumVertices());
+                new(&graph) graph_t(args, dataset.getMaxVertexId());
             }
         }
     }

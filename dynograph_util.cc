@@ -378,7 +378,7 @@ Dataset::Dataset(Args args)
     // Calculate max vertex id so engines can statically provision the vertex array
     auto max_edge = std::max_element(edges.begin(), edges.end(),
         [](const Edge& a, const Edge& b) { return std::max(a.src, a.dst) < std::max(b.src, b.dst); });
-    max_num_vertices = std::max(max_edge->src, max_edge->dst);
+    max_vertex_id = std::max(max_edge->src, max_edge->dst);
 
     // Make sure edges are sorted by timestamp, and save min/max timestamp
     if (!std::is_sorted(edges.begin(), edges.end(),
@@ -396,7 +396,7 @@ Dataset::Dataset(Args args)
     }
 
     // Synchronize member variables across ranks
-    MPI_Bcast(&max_num_vertices, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&max_vertex_id, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&min_timestamp, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(&max_timestamp, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
 
@@ -611,9 +611,9 @@ Dataset::isDirected() const
 }
 
 int64_t
-Dataset::getMaxNumVertices() const
+Dataset::getMaxVertexId() const
 {
-    return max_num_vertices;
+    return max_vertex_id;
 }
 
 std::vector<Batch>::const_iterator
@@ -623,7 +623,7 @@ Dataset::end() const { return batches.cend(); }
 
 // Partial implementation of DynamicGraph
 
-DynamicGraph::DynamicGraph(const Args& args, int64_t max_nv)
+DynamicGraph::DynamicGraph(const Args& args, int64_t max_vertex_id)
 : args(args) {}
 
 // Implementation of vertex_degree
