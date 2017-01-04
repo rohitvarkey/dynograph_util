@@ -48,6 +48,7 @@ static const option long_options[] = {
     {"window-size", required_argument, 0, 0},
     {"num-trials" , required_argument, 0, 0},
     {"help"       , no_argument, 0, 0},
+    {NULL         , 0, 0, 0}
 };
 
 static const std::pair<string, string> option_descriptions[] = {
