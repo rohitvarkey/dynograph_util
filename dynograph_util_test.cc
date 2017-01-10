@@ -79,12 +79,11 @@ TEST_P(DatasetTest, DontSkipAnyEpochs) {
 
 
 std::vector<Args> all_args;
-void init_arg_list(std::vector<Args> &all_args)
+void init_arg_list(std::vector<Args> &all_args, std::string path)
 {
     Args args;
     args.num_epochs = 5;
-    // HACK get absolute path somehow
-    args.input_path = "/home/ehein6/sources/dynograph-inputs/active/ring-of-cliques.graph.el";
+    args.input_path = path;
     args.batch_size = 10;
     args.alg_names = {"cc", "pagerank"};
     args.sort_mode = Args::SORT_MODE::UNSORTED;
@@ -103,7 +102,11 @@ INSTANTIATE_TEST_CASE_P(SetWindowThresholdCorrectlyForAllArgs, DatasetTest, ::te
 INSTANTIATE_TEST_CASE_P(DontSkipAnyEpochsForAllArgs, DatasetTest, ::testing::ValuesIn(all_args));
 
 int main(int argc, char **argv) {
-    init_arg_list(all_args);
+    if (argc < 2) {
+        std::cerr << "Missing argument, need path to test graph\n";
+        return -1;
+    }
+    init_arg_list(all_args, argv[1]);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

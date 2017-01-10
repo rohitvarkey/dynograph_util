@@ -29,6 +29,6 @@ endif()
 # Build the unit tests
 add_executable(dynograph_util_test dynograph_util_test.cc)
 target_include_directories(dynograph_util_test PRIVATE ${GOOGLETEST_DIR})
-target_link_libraries(dynograph_util_test dynograph_util gtest_main)
+target_link_libraries(dynograph_util_test dynograph_util gtest)
 
-add_test(dynograph_util_test dynograph_util_test)
+add_test(dynograph_util_test dynograph_util_test ${CMAKE_CURRENT_SOURCE_DIR}/data/ring-of-cliques.graph.el)
