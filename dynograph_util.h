@@ -120,11 +120,10 @@ public:
 
 class DynamicGraph
 {
-protected:
-    const Args& args;
 public:
+    const Args args;
     // Initialize the graph - your constructor must match this signature
-    DynamicGraph(const Args& args, int64_t max_vertex_id);
+    DynamicGraph(Args args, int64_t max_vertex_id);
     // Return list of supported algs - your class must implement this method
     static std::vector<std::string> get_supported_algs();
     // Prepare to insert the batch

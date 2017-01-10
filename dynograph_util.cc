@@ -623,7 +623,7 @@ Dataset::end() const { return batches.cend(); }
 
 // Partial implementation of DynamicGraph
 
-DynamicGraph::DynamicGraph(const Args& args, int64_t max_vertex_id)
+DynamicGraph::DynamicGraph(const Args args, int64_t max_vertex_id)
 : args(args) {}
 
 // Implementation of vertex_degree
