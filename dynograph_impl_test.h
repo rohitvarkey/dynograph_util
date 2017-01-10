@@ -13,11 +13,10 @@ class ImplTest : public ::testing::Test {
 private:
     graph_t graph;
 protected:
-    Args args;
     DynamicGraph &impl;
 public:
     ImplTest()
-    : graph({1, "dummy", 1, graph_t::get_supported_algs(), Args::SORT_MODE::UNSORTED, 1.0, 1}, 100)
+    : graph({1, "dummy", 3, graph_t::get_supported_algs(), Args::SORT_MODE::UNSORTED, 1.0, 1}, 100)
     , impl(graph)
     {}
 };
@@ -30,37 +29,18 @@ TYPED_TEST_P(ImplTest, CheckAlgs)
     std::vector<Edge> edges = {
         {1, 2, 1, 100},
         {2, 3, 2, 200},
-        {3, 4, 1, 300},
-        {4, 5, 2, 400},
-        {5, 1, 1, 500},
+        {3, 1, 1, 300},
     };
     Batch batch(edges.begin(), edges.end());
-    this->args.batch_size = edges.size();
     this->impl.insert_batch(batch);
 
     // Run all supported algs
-    for (auto alg_name : this->args.alg_names)
+    for (auto alg_name : this->impl.args.alg_names)
     {
         this->impl.update_alg(alg_name, {1});
     }
+    EXPECT_EQ(this->impl.get_num_edges(), 3);
 };
-
-// Insert an edge and make sure num_edges == 1
-TYPED_TEST_P(ImplTest, SingleEdgeInsert)
-{
-    // Create a batch with one edge
-    std::vector<Edge> edges = {
-        {2, 3, 0, 0}
-    };
-    Batch batch(edges.begin(), edges.end());
-    this->args.batch_size = edges.size();
-
-    // Ask the impl to insert the edge
-    this->impl.insert_batch(batch);
-
-    // Make sure it reports one edge back
-    EXPECT_EQ(this->impl.get_num_edges(), 1);
-}
 
 // Insert several duplicates of the same edge and make sure num_edges == 1
 TYPED_TEST_P(ImplTest, DuplicateEdgeInsert)
@@ -72,7 +52,6 @@ TYPED_TEST_P(ImplTest, DuplicateEdgeInsert)
         {2, 3, 0, 0},
     };
     Batch batch(edges.begin(), edges.end());
-    this->args.batch_size = edges.size();
 
     // Ask the impl to insert the edges
     this->impl.insert_batch(batch);
@@ -93,15 +72,15 @@ TYPED_TEST_P(ImplTest, BidirectionalEdgeInsert)
     std::vector<Edge> edges = {
         {2, 3, 0, 0},
         {3, 2, 0, 0},
+        {1, 2, 0, 0},
     };
     Batch batch(edges.begin(), edges.end());
-    this->args.batch_size = edges.size();
 
     // Ask the impl to insert the batch
     this->impl.insert_batch(batch);
 
     // Make sure it reports the right number of edges back
-    EXPECT_EQ(this->impl.get_num_edges(), 2);
+    EXPECT_EQ(this->impl.get_num_edges(), 3);
 }
 
 // Make sure we get the right value back from get_out_degree
@@ -114,7 +93,6 @@ TYPED_TEST_P(ImplTest, GetOutDegree)
         {1, 5, 0, 0},
     };
     Batch batch(edges.begin(), edges.end());
-    this->args.batch_size = edges.size();
 
     // Ask the impl to insert the edge
     this->impl.insert_batch(batch);
@@ -133,7 +111,6 @@ TYPED_TEST_P(ImplTest, DeleteOlderThan)
         {1, 5, 0, 300},
     };
     Batch batch(edges.begin(), edges.end());
-    this->args.batch_size = edges.size();
     this->impl.insert_batch(batch);
     EXPECT_EQ(this->impl.get_num_edges(), 3);
     EXPECT_EQ(this->impl.get_out_degree(1), 3);
@@ -164,7 +141,6 @@ TYPED_TEST_P(ImplTest, TimestampUpdate)
         {1, 5, 0, 300},
     };
     Batch batch1(edges1.begin(), edges1.end());
-    this->args.batch_size = edges1.size();
     this->impl.insert_batch(batch1);
     EXPECT_EQ(this->impl.get_num_edges(), 3);
     EXPECT_EQ(this->impl.get_out_degree(1), 3);
@@ -187,7 +163,6 @@ TYPED_TEST_P(ImplTest, TimestampUpdate)
 // All tests in this file must be registered here
 REGISTER_TYPED_TEST_CASE_P( ImplTest
     ,CheckAlgs
-    ,SingleEdgeInsert
     ,DuplicateEdgeInsert
     ,BidirectionalEdgeInsert
     ,GetOutDegree
