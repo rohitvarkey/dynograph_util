@@ -31,4 +31,5 @@ add_executable(dynograph_util_test dynograph_util_test.cc)
 target_include_directories(dynograph_util_test PRIVATE ${GOOGLETEST_DIR})
 target_link_libraries(dynograph_util_test dynograph_util gtest)
 
+enable_testing()
 add_test(dynograph_util_test dynograph_util_test ${CMAKE_CURRENT_SOURCE_DIR}/data/ring-of-cliques.graph.el)
