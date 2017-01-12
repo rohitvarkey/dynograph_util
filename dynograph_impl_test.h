@@ -42,6 +42,13 @@ TYPED_TEST_P(ImplTest, CheckAlgs)
     EXPECT_EQ(this->impl.get_num_edges(), 3);
 };
 
+// Make sure empty graph is really empty
+TYPED_TEST_P(ImplTest, EmptyGraph)
+{
+    EXPECT_EQ(this->impl.get_num_vertices(), 0);
+    EXPECT_EQ(this->impl.get_num_edges(), 0);
+};
+
 // Insert several duplicates of the same edge and make sure num_edges == 1
 TYPED_TEST_P(ImplTest, DuplicateEdgeInsert)
 {
@@ -163,6 +170,7 @@ TYPED_TEST_P(ImplTest, TimestampUpdate)
 // All tests in this file must be registered here
 REGISTER_TYPED_TEST_CASE_P( ImplTest
     ,CheckAlgs
+    ,EmptyGraph
     ,DuplicateEdgeInsert
     ,BidirectionalEdgeInsert
     ,GetOutDegree
