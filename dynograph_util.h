@@ -281,6 +281,7 @@ run(int argc, char **argv)
         graph_t graph(args, dataset.getMaxVertexId());
 
         // Run the algorithm(s) after each inserted batch
+        int64_t epoch = 0;
         for (int64_t batch_id = 0; batch_id < dataset.batches.size(); ++batch_id)
         {
             hooks.set_attr("batch", batch_id);
@@ -320,11 +321,14 @@ run(int argc, char **argv)
                     if (sources.size() == 1) {
                         hooks.set_stat("source_vertex", sources[0]);
                     }
+                    hooks.set_stat("epoch", epoch);
                     logger << "Running " << alg_name << "\n";
                     hooks.region_begin(alg_name);
                     graph.update_alg(alg_name, sources);
                     hooks.region_end();
                 }
+                epoch += 1;
+                assert(epoch <= args.num_epochs);
             }
 
             // Clear out the graph between batches in snapshot mode
@@ -339,6 +343,7 @@ run(int argc, char **argv)
                 new(&graph) graph_t(args, dataset.getMaxVertexId());
             }
         }
+        assert(epoch == args.num_epochs);
     }
 }
 
