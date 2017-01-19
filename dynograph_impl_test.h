@@ -4,6 +4,7 @@
 
 #include <dynograph_util.h>
 #include <gtest/gtest.h>
+#include <reference_impl.h>
 
 using namespace DynoGraph;
 
@@ -178,6 +179,56 @@ REGISTER_TYPED_TEST_CASE_P( ImplTest
     ,TimestampUpdate
 );
 
-// To instantiate this test, create a source file that includes this header and this line:
+template <typename graph_t>
+class CompareWithReferenceTest : public ::testing::Test {
+protected:
+    Args args;
+    Dataset dataset;
+private:
+    graph_t test_graph;
+    reference_impl ref_graph;
+protected:
+    DynamicGraph &test_impl;
+    DynamicGraph &ref_impl;
+public:
+    CompareWithReferenceTest()
+    // TODO vary the batch size and sort mode here
+    : args{1, "dynograph_util/data/worldcup-10K.graph.bin", 67777, {}, Args::SORT_MODE::UNSORTED, 1.0, 1}
+    , dataset(args)
+    , test_graph(args, dataset.getMaxVertexId())
+    , ref_graph(args, dataset.getMaxVertexId())
+    , test_impl(test_graph)
+    , ref_impl(ref_graph)
+    {
+
+    }
+};
+TYPED_TEST_CASE_P(CompareWithReferenceTest);
+
+TYPED_TEST_P(CompareWithReferenceTest, MatchEdgeCount)
+{
+    for (uint64_t batch = 0; batch < this->dataset.batches.size(); ++batch)
+    {
+        auto b = this->dataset.getBatch(batch);
+        this->test_impl.insert_batch(*b);
+        this->ref_impl.insert_batch(*b);
+
+        EXPECT_EQ(
+            this->test_impl.get_num_edges(),
+            this->ref_impl.get_num_edges()
+        );
+        for (int64_t v = 0; v < this->test_impl.get_num_vertices(); ++v)
+        {
+            EXPECT_EQ(
+                this->test_impl.get_out_degree(v),
+                this->ref_impl.get_out_degree(v)
+            );
+        }
+    }
+}
+
+REGISTER_TYPED_TEST_CASE_P( CompareWithReferenceTest , MatchEdgeCount);
+
+// To instantiate this test, create a source file that includes this header and these lines:
 //      INSTANTIATE_TYPED_TEST_CASE_P(TEST_NAME_HERE, ImplTest, ClassThatImplementsDynamicGraph);
 // Then link with gtest_main
