@@ -292,11 +292,11 @@ run(int argc, char **argv)
             int64_t threshold = dataset.getTimestampForWindow(batch_id);
             graph.before_batch(*batch, threshold);
 
-            hooks.set_stat("num_vertices", graph.get_num_vertices());
-            hooks.set_stat("num_edges", graph.get_num_edges());
-
-            if (args.window_size != 1.0)
+            if (args.window_size != 1.0 && args.sort_mode != DynoGraph::Args::SORT_MODE::SNAPSHOT)
             {
+                hooks.set_stat("num_vertices", graph.get_num_vertices());
+                hooks.set_stat("num_edges", graph.get_num_edges());
+
                 logger << "Deleting edges older than " << threshold << "\n";
                 hooks.region_begin("deletions");
                 graph.delete_edges_older_than(threshold);
@@ -311,10 +311,10 @@ run(int argc, char **argv)
             graph.insert_batch(*batch);
             hooks.region_end();
 
-            hooks.set_stat("num_vertices", graph.get_num_vertices());
-            hooks.set_stat("num_edges", graph.get_num_edges());
-
             if (dataset.enableAlgsForBatch(batch_id)) {
+                hooks.set_stat("num_vertices", graph.get_num_vertices());
+                hooks.set_stat("num_edges", graph.get_num_edges());
+
                 for (std::string alg_name : args.alg_names)
                 {
                     std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
