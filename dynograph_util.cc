@@ -616,11 +616,6 @@ Dataset::getMaxVertexId() const
     return max_vertex_id;
 }
 
-std::vector<Batch>::const_iterator
-Dataset::begin() const { return batches.cbegin(); }
-std::vector<Batch>::const_iterator
-Dataset::end() const { return batches.cend(); }
-
 // Partial implementation of DynamicGraph
 
 DynamicGraph::DynamicGraph(const Args args, int64_t max_vertex_id)

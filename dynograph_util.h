@@ -112,9 +112,6 @@ public:
     bool isDirected() const;
     int64_t getMaxVertexId() const;
 
-    std::vector<Batch>::const_iterator begin() const;
-    std::vector<Batch>::const_iterator end() const;
-
     bool enableAlgsForBatch(int64_t i) const;
 };
 
