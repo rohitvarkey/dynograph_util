@@ -38,3 +38,12 @@ target_link_libraries(reference_impl_test dynograph_util gtest_main)
 enable_testing()
 add_test(dynograph_util_test dynograph_util_test ${CMAKE_CURRENT_SOURCE_DIR}/data/ring-of-cliques.graph.el)
 add_test(reference_impl_test dynograph_util_test)
+
+# Copy test data to the build directory
+file(
+    COPY
+    data/ring-of-cliques.graph.bin
+    data/worldcup-10K.graph.bin
+    DESTINATION
+    data/
+)

@@ -79,11 +79,11 @@ TEST_P(DatasetTest, DontSkipAnyEpochs) {
 
 
 std::vector<Args> all_args;
-void init_arg_list(std::vector<Args> &all_args, std::string path)
+void init_arg_list(std::vector<Args> &all_args)
 {
     Args args;
     args.num_epochs = 5;
-    args.input_path = path;
+    args.input_path = "data/ring-of-cliques.graph.bin";
     args.batch_size = 10;
     args.alg_names = {"cc", "pagerank"};
     args.sort_mode = Args::SORT_MODE::UNSORTED;
@@ -102,11 +102,7 @@ INSTANTIATE_TEST_CASE_P(SetWindowThresholdCorrectlyForAllArgs, DatasetTest, ::te
 INSTANTIATE_TEST_CASE_P(DontSkipAnyEpochsForAllArgs, DatasetTest, ::testing::ValuesIn(all_args));
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        std::cerr << "Missing argument, need path to test graph\n";
-        return -1;
-    }
-    init_arg_list(all_args, argv[1]);
+    init_arg_list(all_args);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
