@@ -473,11 +473,15 @@ Dataset::Dataset(Args args)
 #endif
 
     // Store iterators to the beginning and end of each batch
-    // NOTE In the MPI case, edges_per_batch != batch_size, because we have divided the edges between ranks
-    int64_t edges_per_batch = edges.size() / num_batches;
+    // BUG In the MPI case, batch_size is wrong, because we have divided the edges between ranks
+#ifdef USE_MPI
+    logger << "FIXME: Need to recalculate batch size\n";
+    die();
+#endif
+
     for (int i = 0; i < num_batches; ++i)
     {
-        size_t offset = i * edges_per_batch;
+        size_t offset = i * args.batch_size;
         auto begin = edges.begin() + offset;
         auto end = edges.begin() + offset + args.batch_size;
         batches.push_back(Batch(begin, end));
