@@ -33,9 +33,9 @@ public:
     // Delete edges in the graph with a timestamp older than <threshold>
     virtual void delete_edges_older_than(int64_t threshold)
     {
-        for (std::pair<const int64_t, edge_list>& vertex : graph)
+        for (adjacency_list::iterator vertex = graph.begin(); vertex != graph.end();)
         {
-            edge_list& neighbors = vertex.second;
+            edge_list& neighbors = vertex->second;
             for (edge_list::iterator neighbor = neighbors.begin(); neighbor != neighbors.end();)
             {
                 int64_t timestamp = neighbor->second.timestamp;
@@ -45,6 +45,13 @@ public:
                 } else {
                     ++neighbor;
                 }
+            }
+            // Remove vertex if all out edges are gone
+            if (vertex->second.size() == 0)
+            {
+                vertex = graph.erase(vertex);
+            } else {
+                ++vertex;
             }
         }
     }
@@ -90,10 +97,16 @@ public:
     {
         for (const std::pair<const int64_t, edge_list>& vertex : graph)
         {
-            const edge_list& neighborhood = vertex.second;
-            num_edges += neighborhood.size();
+            int64_t source = vertex.first;
+            const edge_list& neighbors = vertex.second;
+            for (edge_list::const_iterator neighbor = neighbors.begin(); neighbor != neighbors.end(); ++neighbor)
+            {
+                int64_t dest = neighbor->first;
+                int64_t weight = neighbor->second.weight;
+                int64_t timestamp = neighbor->second.timestamp;
+                std::cerr << source << " " << dest << " " << timestamp << "\n";
+            }
         }
-        return num_edges;
     }
 };
 
