@@ -209,8 +209,7 @@ bool DynoGraph::operator<(const Edge& a, const Edge& b)
     // This way the edge with the most recent timestamp will be picked when deduplicating
     return (a.src != b.src) ? a.src < b.src
          : (a.dst != b.dst) ? a.dst < b.dst
-         : (a.timestamp != b.timestamp) ? a.timestamp > b.timestamp
-         : false;
+         : a.timestamp > b.timestamp;
 }
 
 bool DynoGraph::operator==(const Edge& a, const Edge& b)
