@@ -1,7 +1,7 @@
 #ifndef REFERENCE_IMPL_H
 #define REFERENCE_IMPL_H
 
-#include <dynograph_util.h>
+#include "dynograph_util.h"
 #include <map>
 #include <inttypes.h>
 
@@ -20,11 +20,12 @@ protected:
     typedef std::map<int64_t, edge_prop> edge_list;
     typedef std::map<int64_t, edge_list> adjacency_list;
     adjacency_list graph;
+    int64_t num_edges;
 
 public:
 
     reference_impl(DynoGraph::Args args, int64_t max_vertex_id)
-    : DynoGraph::DynamicGraph(args, max_vertex_id) {};
+    : DynoGraph::DynamicGraph(args, max_vertex_id), num_edges(0) {};
 
     static std::vector<std::string> get_supported_algs() { return {}; };
     // Prepare to insert the batch
@@ -40,6 +41,7 @@ public:
                 int64_t timestamp = neighbor->second.timestamp;
                 if (timestamp < threshold) {
                     neighbor = neighbors.erase(neighbor);
+                    --num_edges;
                 } else {
                     ++neighbor;
                 }
@@ -57,6 +59,7 @@ public:
                 // Insert new edge
                 edge.weight = e.weight;
                 edge.timestamp = e.timestamp;
+                ++num_edges;
             } else {
                 // Update existing edge
                 edge.weight += e.weight;
@@ -80,8 +83,12 @@ public:
     // Return the number of unique edges in the graph
     virtual int64_t get_num_edges() const
     {
-        int64_t num_edges = 0;
-        for (const std::pair<int64_t, edge_list>& vertex : graph)
+        return num_edges;
+    }
+
+    void dump_edges() const
+    {
+        for (const std::pair<const int64_t, edge_list>& vertex : graph)
         {
             const edge_list& neighborhood = vertex.second;
             num_edges += neighborhood.size();
