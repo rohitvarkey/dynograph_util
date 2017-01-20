@@ -323,6 +323,14 @@ DeduplicatedBatch::num_vertices_affected() const
     return unique_vertices.size();
 }
 
+FilteredBatch::FilteredBatch(const Batch &batch, int64_t threshold)
+: Batch(batch)
+{
+    // Skip past edges that are older than the threshold
+    begin_iter = std::find_if(batch.begin(), batch.end(),
+        [threshold](const Edge& e) { return e.timestamp >= threshold; });
+}
+
 // Implementation of DynoGraph::Dataset
 
 // Helper function to test a string for a given suffix
@@ -582,26 +590,24 @@ shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId) const
 {
     Logger &logger = Logger::get_instance();
-    const Batch & b = batches[batchId];
+    int64_t threshold = getTimestampForWindow(batchId);
+    const Batch& b = batches[batchId];
     switch (args.sort_mode)
     {
         case Args::SORT_MODE::UNSORTED:
         {
-            return make_shared<Batch>(b);
+            return make_shared<FilteredBatch>(b, threshold);;
         }
         case Args::SORT_MODE::PRESORT:
         {
             logger << "Presorting batch " << batchId << "...\n";
-            return make_shared<DeduplicatedBatch>(b);
+            return make_shared<DeduplicatedBatch>(FilteredBatch(b, threshold));
         }
         case Args::SORT_MODE::SNAPSHOT:
         {
             logger << "Generating snapshot for batch " << batchId << "...\n";
-            int64_t threshold = getTimestampForWindow(batchId);
-            auto start = std::find_if(edges.begin(), b.end(),
-                [threshold](const Edge& e){ return e.timestamp >= threshold; });
-            Batch filtered(start, b.end());
-            return make_shared<DeduplicatedBatch>(filtered);
+            Batch cumulative_snapshot(edges.begin(), b.end());
+            return make_shared<DeduplicatedBatch>(FilteredBatch(cumulative_snapshot, threshold));
         }
         default: assert(0); return nullptr;
     }

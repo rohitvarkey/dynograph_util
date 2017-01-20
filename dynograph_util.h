@@ -78,6 +78,12 @@ protected:
     iterator begin_iter, end_iter;
 };
 
+class FilteredBatch : public Batch
+{
+public:
+    explicit FilteredBatch(const Batch& batch, int64_t threshold);
+};
+
 class DeduplicatedBatch : public Batch
 {
 protected:
