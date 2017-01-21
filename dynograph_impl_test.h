@@ -192,8 +192,7 @@ protected:
     DynamicGraph &ref_impl;
 public:
     CompareWithReferenceTest()
-    // TODO vary the batch size and sort mode here
-    : args{1, "dynograph_util/data/worldcup-10K.graph.bin", 67777, {}, Args::SORT_MODE::UNSORTED, 1.0, 1}
+    : args{1, "dynograph_util/data/worldcup-10K.graph.bin", 500, {}, Args::SORT_MODE::UNSORTED, 0.7, 1}
     , dataset(args)
     , test_graph(args, dataset.getMaxVertexId())
     , ref_graph(args, dataset.getMaxVertexId())
@@ -213,13 +212,13 @@ TYPED_TEST_P(CompareWithReferenceTest, MatchEdgeCount)
         this->test_impl.insert_batch(*b);
         this->ref_impl.insert_batch(*b);
 
-        EXPECT_EQ(
+        ASSERT_EQ(
             this->test_impl.get_num_edges(),
             this->ref_impl.get_num_edges()
         );
         for (int64_t v = 0; v < this->test_impl.get_num_vertices(); ++v)
         {
-            EXPECT_EQ(
+            ASSERT_EQ(
                 this->test_impl.get_out_degree(v),
                 this->ref_impl.get_out_degree(v)
             );
@@ -231,4 +230,5 @@ REGISTER_TYPED_TEST_CASE_P( CompareWithReferenceTest , MatchEdgeCount);
 
 // To instantiate this test, create a source file that includes this header and these lines:
 //      INSTANTIATE_TYPED_TEST_CASE_P(TEST_NAME_HERE, ImplTest, ClassThatImplementsDynamicGraph);
+//      INSTANTIATE_TYPED_TEST_CASE_P(TEST_NAME_HERE, CompareWithReferenceTest, ClassThatImplementsDynamicGraph);
 // Then link with gtest_main
