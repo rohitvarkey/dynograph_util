@@ -398,6 +398,14 @@ Dataset::Dataset(Args args)
     min_timestamp = edges.front().timestamp;
     max_timestamp = edges.back().timestamp;
 
+    // Make sure there are no self-edges
+    auto self_edge = std::find_if(edges.begin(), edges.end(),
+        [](const Edge& e) { return e.src == e.dst; });
+    if (self_edge != edges.end()) {
+        logger << "Invalid dataset: no self-edges allowed\n";
+        die();
+    }
+
 #if defined(USE_MPI)
         logger << "Distributing dataset to " << comm_size << " ranks...\n";
     }
