@@ -104,7 +104,7 @@ public:
                 int64_t dest = neighbor->first;
                 int64_t weight = neighbor->second.weight;
                 int64_t timestamp = neighbor->second.timestamp;
-                std::cerr << source << " " << dest << " " << timestamp << "\n";
+                std::cerr << source << " " << dest << " " << weight << " " << timestamp << "\n";
             }
         }
     }
