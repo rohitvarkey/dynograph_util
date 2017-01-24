@@ -288,6 +288,7 @@ run(int argc, char **argv)
         for (int64_t batch_id = 0; batch_id < dataset.batches.size(); ++batch_id)
         {
             hooks.set_attr("batch", batch_id);
+            hooks.set_attr("epoch", epoch);
             hooks.region_begin("preprocess");
             std::shared_ptr<DynoGraph::Batch> batch = dataset.getBatch(batch_id);
             hooks.region_end();
@@ -324,7 +325,6 @@ run(int argc, char **argv)
                     if (sources.size() == 1) {
                         hooks.set_stat("source_vertex", sources[0]);
                     }
-                    hooks.set_stat("epoch", epoch);
                     logger << "Running " << alg_name << "\n";
                     hooks.region_begin(alg_name);
                     graph.update_alg(alg_name, sources);
