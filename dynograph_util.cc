@@ -565,8 +565,9 @@ round_down(double x)
 }
 
 // Divide two integers with double result
+template <typename X, typename Y>
 static double
-true_div(int64_t x, int64_t y)
+true_div(X x, Y y)
 {
     return static_cast<double>(x) / static_cast<double>(y);
 }

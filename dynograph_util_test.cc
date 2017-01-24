@@ -19,19 +19,21 @@ public:
     static void init_arg_list()
     {
         Args args;
-        args.num_epochs = 5;
-        args.input_path = "data/ring-of-cliques.graph.bin";
-        args.batch_size = 10;
-        args.alg_names = {"cc", "pagerank"};
-        args.sort_mode = Args::SORT_MODE::UNSORTED;
-        args.window_size = 1.0;
+        args.input_path = "data/worldcup-10K.graph.bin";
         args.num_trials = 1;
+        args.sort_mode = Args::SORT_MODE::UNSORTED;
+        args.alg_names = {};
 
-        all_args.push_back(args);
-
-        args.window_size = 0.5;
-
-        all_args.push_back(args);
+        for (int64_t batch_size : { 100, 500, 5000 }) {
+            args.batch_size = batch_size;
+            for (double window_size : { 0.1, 0.5, 1.0 }) {
+                args.window_size = window_size;
+                for (int64_t num_epochs : {3, 5, 7}) {
+                    args.num_epochs = num_epochs;
+                    all_args.push_back(args);
+                }
+            }
+        }
     }
 protected:
     const Dataset dataset;
@@ -47,7 +49,7 @@ TEST_P(DatasetTest, LoadDatasetCorrectly) {
     EXPECT_EQ(args.validate(), "");
 
     // HACK somehow load in truth data about how many edges are actually in the dataset
-    const int64_t actual_num_edges = 50;
+    const int64_t actual_num_edges = 44500;
 
     // Check that the right number of edges were loaded
     EXPECT_EQ(dataset.edges.size(), actual_num_edges);
