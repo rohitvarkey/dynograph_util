@@ -609,12 +609,10 @@ Dataset::getBatch(int64_t batchId) const
         }
         case Args::SORT_MODE::PRESORT:
         {
-            logger << "Presorting batch " << batchId << "...\n";
             return make_shared<DeduplicatedBatch>(FilteredBatch(b, threshold));
         }
         case Args::SORT_MODE::SNAPSHOT:
         {
-            logger << "Generating snapshot for batch " << batchId << "...\n";
             Batch cumulative_snapshot(edges.begin(), b.end());
             return make_shared<DeduplicatedBatch>(FilteredBatch(cumulative_snapshot, threshold));
         }
