@@ -6,6 +6,24 @@
 #include <fstream>
 #include "json.hpp"
 
+#include "edge_count.h"
+// Helper class to manage edge count hooks
+struct edge_count_wrapper
+{
+    edge_count_wrapper() { dynograph_edge_count_init(); }
+    ~edge_count_wrapper() { dynograph_edge_count_free(); }
+    std::vector<uint64_t>
+    get_num_traversed_edges() const {
+        std::vector<uint64_t> num_traversed_edges(DYNOGRAPH_EDGE_COUNT_THREAD_COUNT);
+        for (size_t i = 0; i < DYNOGRAPH_EDGE_COUNT_THREAD_COUNT; ++i) {
+            num_traversed_edges[i] = dynograph_edge_count_get(i);
+        }
+        return num_traversed_edges;
+    }
+    void
+    reset() const { dynograph_edge_count_reset(); }
+};
+
 #if defined(_OPENMP)
 #include <omp.h>
 #endif
@@ -45,8 +63,8 @@ class Hooks::impl
     string region_name;
     // Start and end times of the last region
     std::chrono::time_point<std::chrono::steady_clock> t1, t2;
-    // Number of edges traversed during the current region (per thread)
-    vector<int64_t> num_traversed_edges;
+    // Access edge counter values
+    edge_count_wrapper edge_counter;
     // Dict of custom attributes that should be printed after every region_end
     json attrs;
     // Dict of custom results that should be printed after the next region_end
@@ -122,7 +140,6 @@ class Hooks::impl
     impl()
      : out(get_output_filename(), std::ofstream::app)
      , region_name("")
-     , num_traversed_edges(get_num_threads())
 #if defined(ENABLE_PERF_HOOKS)
      , perf_event_names(get_perf_event_names())
      , perf_group_size(get_perf_group_size())
@@ -130,7 +147,6 @@ class Hooks::impl
      , perf(get_num_threads(), perf_events)
 #endif
     {
-
     }
 
     void __attribute__ ((noinline))
@@ -167,7 +183,6 @@ class Hooks::impl
         #pragma omp parallel
         {
             int tid = get_thread_id();
-            num_traversed_edges[tid] = 0;
             perf.open(tid, trial, perf_group_size);
             perf.start(tid, trial, perf_group_size);
         }
@@ -207,14 +222,10 @@ class Hooks::impl
         json results;
 
         // Save # of traversed edges if the function was used
-        int64_t total_edges_traversed = 0;
-        for (int64_t n : num_traversed_edges) {
-            total_edges_traversed += n;
-        }
-        if (total_edges_traversed > 0) {
-            results["num_traversed_edges"] = num_traversed_edges;
-        }
-
+#ifdef ENABLE_DYNOGRAPH_EDGE_COUNT
+        results["num_traversed_edges"] = edge_counter.get_num_traversed_edges();
+        edge_counter.reset();
+#endif
         // Record time elapsed
         results["time_ms"] = std::chrono::duration<double, std::milli>(t2-t1).count();
 
@@ -329,9 +340,6 @@ class Hooks::impl
     }
 #endif
 
-    void traverse_edges(int64_t n) {
-        num_traversed_edges[get_thread_id()] += n;
-    }
     template<typename T>
     void
     set_attr(std::string key, T value) {
@@ -368,7 +376,6 @@ void Hooks::set_stat(std::string key, uint64_t value)       { pimpl->set_stat(ke
 void Hooks::set_stat(std::string key, int64_t value)        { pimpl->set_stat(key, value); }
 void Hooks::set_stat(std::string key, double value)         { pimpl->set_stat(key, value); }
 void Hooks::set_stat(std::string key, std::string value)    { pimpl->set_stat(key, value); }
-void Hooks::traverse_edges(uint64_t n)                      { pimpl->traverse_edges(n); }
 
 // Implementation of C interface
 //
@@ -407,10 +414,4 @@ extern "C" void
 hooks_set_attr_str(const char * key, const char* value)
 {
     Hooks::getInstance().set_attr(key, value);
-}
-
-extern "C" void
-hooks_traverse_edges(uint64_t n)
-{
-    Hooks::getInstance().traverse_edges(n);
 }

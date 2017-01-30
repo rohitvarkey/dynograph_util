@@ -22,8 +22,6 @@ public:
     void set_stat(std::string key, int64_t value);
     void set_stat(std::string key, double value);
     void set_stat(std::string key, std::string value);
-    // Record the traversal of an edge during an algorithm
-    void traverse_edges(uint64_t n);
 private:
     Hooks();
     ~Hooks();
