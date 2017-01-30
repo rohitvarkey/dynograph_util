@@ -19,7 +19,10 @@ public:
     ImplTest()
     : graph({1, "dummy", 3, graph_t::get_supported_algs(), Args::SORT_MODE::UNSORTED, 1.0, 1}, 100)
     , impl(graph)
-    {}
+    {
+        // Initialize edge count
+        Hooks::getInstance();
+    }
 };
 TYPED_TEST_CASE_P(ImplTest);
 
