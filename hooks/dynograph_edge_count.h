@@ -21,8 +21,8 @@ extern uint64_t* dynograph_edge_count_num_traversed_edges;
 
 #if defined(_OPENMP)
 #include <omp.h>
-#define DYNOGRAPH_EDGE_COUNT_THREAD_ID omp_get_thread_num()
-#define DYNOGRAPH_EDGE_COUNT_THREAD_COUNT omp_get_max_threads()
+#define DYNOGRAPH_EDGE_COUNT_THREAD_ID ((size_t)omp_get_thread_num())
+#define DYNOGRAPH_EDGE_COUNT_THREAD_COUNT ((size_t)omp_get_max_threads())
 #else // single-threaded
 #define DYNOGRAPH_EDGE_COUNT_THREAD_ID 0
 #define DYNOGRAPH_EDGE_COUNT_THREAD_COUNT 1

@@ -194,7 +194,7 @@ DynoGraph::operator <<(std::ostream& os, const Args& args)
         << "\"sort_mode\":\""   << args.sort_mode << "\",";
 
     os << "\"alg_names\":[";
-    for (int i = 0; i < args.alg_names.size(); ++i) {
+    for (size_t i = 0; i < args.alg_names.size(); ++i) {
         if (i != 0) { os << ","; }
         os << "\"" << args.alg_names[i] << "\"";
     }
@@ -366,7 +366,7 @@ Dataset::Dataset(Args args)
     int64_t num_batches = edges.size() / args.batch_size;
 
     // Sanity check on arguments
-    if (args.batch_size > edges.size())
+    if (static_cast<size_t>(args.batch_size) > edges.size())
     {
         logger << "Invalid arguments: batch size (" << args.batch_size << ") "
                << "cannot be larger than the total number of edges in the dataset "
@@ -598,7 +598,6 @@ Dataset::enableAlgsForBatch(int64_t batch_id) const {
 shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId) const
 {
-    Logger &logger = Logger::get_instance();
     int64_t threshold = getTimestampForWindow(batchId);
     const Batch& b = batches[batchId];
     switch (args.sort_mode)

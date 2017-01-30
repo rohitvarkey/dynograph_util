@@ -55,7 +55,7 @@ TEST_P(DatasetTest, LoadDatasetCorrectly) {
     EXPECT_EQ(dataset.edges.size(), actual_num_edges);
     // Check that the dataset was partitioned into the right number of batches
     EXPECT_EQ(dataset.batches.size(), actual_num_edges / args.batch_size);
-    for (int i = 0; i < dataset.batches.size(); ++i) {
+    for (size_t i = 0; i < dataset.batches.size(); ++i) {
         EXPECT_EQ(dataset.batches[i].size(), args.batch_size);
     }
 }
@@ -68,7 +68,7 @@ TEST_P(DatasetTest, SetWindowThresholdCorrectly) {
     int64_t max_ts = dataset.edges.back().timestamp;
     EXPECT_GE(max_ts, min_ts);
 
-    for (int i = 0; i < dataset.batches.size(); ++i)
+    for (size_t i = 0; i < dataset.batches.size(); ++i)
     {
         int64_t threshold = dataset.getTimestampForWindow(i);
 
@@ -86,7 +86,7 @@ TEST_P(DatasetTest, DontSkipAnyEpochs) {
     const Args &args = GetParam();
 
     int64_t actual_num_epochs = 0;
-    for (int i = 0; i < dataset.batches.size(); ++i)
+    for (size_t i = 0; i < dataset.batches.size(); ++i)
     {
         bool run_epoch = dataset.enableAlgsForBatch(i);
         if (run_epoch) {
