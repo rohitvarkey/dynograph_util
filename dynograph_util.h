@@ -276,6 +276,7 @@ run(int argc, char **argv)
     DynoGraph::Dataset dataset(args);
     DynoGraph::Logger &logger = DynoGraph::Logger::get_instance();
     Hooks& hooks = Hooks::getInstance();
+    typedef DynoGraph::Args::SORT_MODE SORT_MODE;
 
     for (int64_t trial = 0; trial < args.num_trials; trial++)
     {
@@ -283,38 +284,73 @@ run(int argc, char **argv)
         // Initialize the graph data structure
         graph_t graph(args, dataset.getMaxVertexId());
 
-        // Run the algorithm(s) after each inserted batch
+        // Step through one batch at a time
+        // Epoch will be incremented as necessary
         int64_t epoch = 0;
         for (int64_t batch_id = 0; batch_id < dataset.batches.size(); ++batch_id)
         {
             hooks.set_attr("batch", batch_id);
             hooks.set_attr("epoch", epoch);
-            hooks.region_begin("preprocess");
-            std::shared_ptr<DynoGraph::Batch> batch = dataset.getBatch(batch_id);
-            hooks.region_end();
 
-            int64_t threshold = dataset.getTimestampForWindow(batch_id);
-            graph.before_batch(*batch, threshold);
-
-            if (args.window_size != 1.0 && args.sort_mode != DynoGraph::Args::SORT_MODE::SNAPSHOT)
+            // Normally, we construct the graph incrementally
+            if (args.sort_mode != SORT_MODE::SNAPSHOT)
             {
+                // Batch preprocessing (preprocess)
+                hooks.region_begin("preprocess");
+                std::shared_ptr<DynoGraph::Batch> batch = dataset.getBatch(batch_id);
+                hooks.region_end();
+
+                int64_t threshold = dataset.getTimestampForWindow(batch_id);
+                graph.before_batch(*batch, threshold);
+
+                // Edge deletion benchmark (deletions)
+                if (args.window_size != 1.0)
+                {
+                    logger << "Deleting edges older than " << threshold << "\n";
+
+                    hooks.set_stat("num_vertices", graph.get_num_vertices());
+                    hooks.set_stat("num_edges", graph.get_num_edges());
+                    hooks.region_begin("deletions");
+                    graph.delete_edges_older_than(threshold);
+                    hooks.region_end();
+                }
+
+                // Edge insertion benchmark (insertions)
+                logger << "Inserting batch " << batch_id << "\n";
                 hooks.set_stat("num_vertices", graph.get_num_vertices());
                 hooks.set_stat("num_edges", graph.get_num_edges());
-
-                logger << "Deleting edges older than " << threshold << "\n";
-                hooks.region_begin("deletions");
-                graph.delete_edges_older_than(threshold);
+                hooks.region_begin("insertions");
+                graph.insert_batch(*batch);
                 hooks.region_end();
+
+            // In snapshot mode, we construct a new graph before each epoch
+            } else if (args.sort_mode == SORT_MODE::SNAPSHOT) {
+
+                if (dataset.enableAlgsForBatch(batch_id))
+                {
+                    logger << "Reinitializing graph\n";
+                    // graph = graph_t(dataset, args) is no good here,
+                    // because this would allocate a new graph before deallocating the old one.
+                    // We probably won't have enough memory for that.
+                    // Instead, use an explicit destructor call followed by placement new
+                    graph.~graph_t();
+                    new(&graph) graph_t(args, dataset.getMaxVertexId());
+
+                    // This batch will be a cumulative, filtered snapshot of all the edges in previous batches
+                    hooks.region_begin("preprocess");
+                    std::shared_ptr<DynoGraph::Batch> batch = dataset.getBatch(batch_id);
+                    hooks.region_end();
+
+                    // Graph construction benchmark (insertions)
+                    logger << "Constructing graph for epoch " << epoch << "\n";
+                    hooks.region_begin("insertions");
+                    graph.insert_batch(*batch);
+                    hooks.region_end();
+
+                }
             }
 
-            hooks.set_stat("num_vertices", graph.get_num_vertices());
-            hooks.set_stat("num_edges", graph.get_num_edges());
-
-            logger << "Inserting batch " << batch_id << "\n";
-            hooks.region_begin("insertions");
-            graph.insert_batch(*batch);
-            hooks.region_end();
-
+            // Graph algorithm benchmarks
             if (dataset.enableAlgsForBatch(batch_id)) {
                 hooks.set_stat("num_vertices", graph.get_num_vertices());
                 hooks.set_stat("num_edges", graph.get_num_edges());
@@ -325,25 +361,13 @@ run(int argc, char **argv)
                     if (sources.size() == 1) {
                         hooks.set_stat("source_vertex", sources[0]);
                     }
-                    logger << "Running " << alg_name << "\n";
+                    logger << "Running " << alg_name << " for epoch " << epoch << "\n";
                     hooks.region_begin(alg_name);
                     graph.update_alg(alg_name, sources);
                     hooks.region_end();
                 }
                 epoch += 1;
                 assert(epoch <= args.num_epochs);
-            }
-
-            // Clear out the graph between batches in snapshot mode
-            if (args.sort_mode == DynoGraph::Args::SORT_MODE::SNAPSHOT)
-            {
-                logger << "Reinitializing graph\n";
-                // graph = graph_t(dataset, args) is no good here,
-                // because this would allocate a new graph before deallocating the old one.
-                // We probably won't have enough memory for that.
-                // Instead, use an explicit destructor call followed by placement new
-                graph.~graph_t();
-                new(&graph) graph_t(args, dataset.getMaxVertexId());
             }
         }
         assert(epoch == args.num_epochs);
