@@ -220,6 +220,12 @@ bool DynoGraph::operator==(const Edge& a, const Edge& b)
         && a.timestamp == b.timestamp;
 }
 
+std::ostream&
+DynoGraph::operator<<(std::ostream &os, const Edge &e) {
+    os << e.src << " " << e.dst << " " << e.weight << " " << e.timestamp;
+    return os;
+}
+
 // Count the number of lines in a text file
 int64_t
 count_lines(string path)

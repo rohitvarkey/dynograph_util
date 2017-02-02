@@ -59,9 +59,8 @@ struct Edge
 
 bool operator<(const Edge& a, const Edge& b);
 bool operator==(const Edge& a, const Edge& b);
+std::ostream& operator <<(std::ostream& os, const Edge& e);
 
-// Forward reference
-class Dataset;
 
 class Batch
 {
