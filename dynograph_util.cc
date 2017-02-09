@@ -47,6 +47,7 @@ static const option long_options[] = {
     {"sort-mode"  , required_argument, 0, 0},
     {"window-size", required_argument, 0, 0},
     {"num-trials" , required_argument, 0, 0},
+    {"num-alg-trials", required_argument, 0, 0},
     {"help"       , no_argument, 0, 0},
     {NULL         , 0, 0, 0}
 };
@@ -62,6 +63,7 @@ static const std::pair<string, string> option_descriptions[] = {
                     "\t\tsnapshot (clear out graph and reconstruct for each batch)"},
     {"window-size", "Percentage of the graph to hold in memory (computed using timestamps) "},
     {"num-trials" , "Number of times to repeat the benchmark"},
+    {"num-alg-trials" , "Number of times to repeat algorithms in each epoch"},
     {"help"       , "Print help"},
 };
 
@@ -131,6 +133,9 @@ Args::parse(int argc, char *argv[])
 
         } else if (option_name == "num-trials") {
             args.num_trials = static_cast<int64_t>(std::stoll(optarg));
+
+        } else if (option_name == "num-alg-trials") {
+            args.num_alg_trials = static_cast<int64_t>(std::stoll(optarg));
 
         } else if (option_name == "help") {
             print_help(argv[0]);

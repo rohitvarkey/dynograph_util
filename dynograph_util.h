@@ -38,6 +38,8 @@ struct Args
     double window_size;
     // Number of times to repeat the benchmark
     int64_t num_trials;
+    // Number of times to repeat each epoch
+    int64_t num_alg_trials;
 
     Args() = default;
     std::string validate() const;
@@ -354,16 +356,20 @@ run(int argc, char **argv)
                 hooks.set_stat("num_vertices", graph.get_num_vertices());
                 hooks.set_stat("num_edges", graph.get_num_edges());
 
-                for (std::string alg_name : args.alg_names)
+                for (int64_t alg_trial = 0; alg_trial < args.num_alg_trials; ++alg_trial)
                 {
-                    std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
-                    if (sources.size() == 1) {
-                        hooks.set_stat("source_vertex", sources[0]);
+                    hooks.set_stat("alg_trial", alg_trial);
+                    for (std::string alg_name : args.alg_names)
+                    {
+                        std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
+                        if (sources.size() == 1) {
+                            hooks.set_stat("source_vertex", sources[0]);
+                        }
+                        logger << "Running " << alg_name << " for epoch " << epoch << "\n";
+                        hooks.region_begin(alg_name);
+                        graph.update_alg(alg_name, sources);
+                        hooks.region_end();
                     }
-                    logger << "Running " << alg_name << " for epoch " << epoch << "\n";
-                    hooks.region_begin(alg_name);
-                    graph.update_alg(alg_name, sources);
-                    hooks.region_end();
                 }
                 epoch += 1;
                 assert(epoch <= args.num_epochs);
