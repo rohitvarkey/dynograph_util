@@ -30,25 +30,26 @@ extern uint64_t* dynograph_edge_count_num_traversed_edges;
 
 #ifndef ENABLE_DYNOGRAPH_EDGE_COUNT
 
-// Define empty macros when disabled for zero overhead
-#define DYNOGRAPH_EDGE_COUNT_TRAVERSE_EDGE()
-#define DYNOGRAPH_EDGE_COUNT_TRAVERSE_MULTIPLE_EDGES(X)
+// Do nothing when disabled for zero overhead
+static inline void
+dynograph_edge_count_traverse_edges(int64_t n) {}
 
 #else // defined(ENABLE_DYNOGRAPH_EDGE_COUNT)
 
-// Call whenever this thread traverses an edge
-#define DYNOGRAPH_EDGE_COUNT_TRAVERSE_EDGE() \
-do {                                                                                \
-    dynograph_edge_count_num_traversed_edges[DYNOGRAPH_EDGE_COUNT_THREAD_ID]+=1;    \
-} while(0)
-
-// Use where possible to avoid putting TRAVERSE_EDGE in a tight loop
-#define DYNOGRAPH_EDGE_COUNT_TRAVERSE_MULTIPLE_EDGES(X) \
-do {                                                                                \
-    dynograph_edge_count_num_traversed_edges[DYNOGRAPH_EDGE_COUNT_THREAD_ID]+=X;    \
-} while(0)
+static inline void
+dynograph_edge_count_traverse_edges(int64_t n)
+{
+    dynograph_edge_count_num_traversed_edges[DYNOGRAPH_EDGE_COUNT_THREAD_ID] += n;
+}
 
 #endif // ENABLE_DYNOGRAPH_EDGE_COUNT
+
+#define DYNOGRAPH_EDGE_COUNT_TRAVERSE_EDGE() \
+dynograph_edge_count_traverse_edges(1)
+
+#define DYNOGRAPH_EDGE_COUNT_TRAVERSE_MULTIPLE_EDGES(X) \
+dynograph_edge_count_traverse_edges(X)
+
 #ifdef __cplusplus
 }
 #endif

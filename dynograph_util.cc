@@ -361,13 +361,8 @@ bool has_suffix(const std::string &str, const std::string &suffix)
 Dataset::Dataset(Args args)
 : args(args), directed(true)
 {
+    MPI_RANK_0_ONLY {
     Logger &logger = Logger::get_instance();
-#if defined(USE_MPI)
-    int rank, comm_size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-    if (rank == 0){
-#endif
     // Load edges from the file
     if (has_suffix(args.input_path, ".graph.bin"))
     {
@@ -423,95 +418,6 @@ Dataset::Dataset(Args args)
         die();
     }
 
-#if defined(USE_MPI)
-        logger << "Distributing dataset to " << comm_size << " ranks...\n";
-    }
-
-    // Synchronize member variables across ranks
-    MPI_Bcast(&max_vertex_id, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&min_timestamp, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&max_timestamp, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-
-    // Move the edges out of rank 0's member variable
-    vector<Edge> all_edges = std::move(edges);
-    edges.clear();
-
-    /*
-     * Now we need to distribute the edges to each process in the group
-     * Each process will have the same number of batches, but each batch
-     * will be a slice of the corresponding batch in the parent
-     */
-    int64_t edges_per_batch = all_edges.size() / args.num_batches;
-    MPI_Bcast(&edges_per_batch, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
-    vector<int> edges_per_slice(comm_size);
-    std::valarray<int> displacements(comm_size+1);
-    if (rank == 0)
-    {
-        // Divide the batch evenly among the ranks
-        for (int i = 0; i < comm_size; ++i)
-        {
-            // Assign a portion of edges to this rank and distribute the remainder evenly
-            int slice_size = std::floor(edges_per_batch / comm_size);
-            if (i < edges_per_batch % comm_size) { slice_size += 1; }
-            edges_per_slice[i] = slice_size;
-        }
-        // Calculate the boundaries of each slice in the all_edges buffer
-        std::partial_sum(edges_per_slice.begin(), edges_per_slice.end(), std::begin(displacements));
-        // Prefix sum gives the end of each buffer, shift to get a list of beginnings
-        displacements = displacements.shift(-1);
-    }
-
-    // Send the size of each slice to the ranks
-    int local_slice_size;
-    MPI_Scatter(
-        edges_per_slice.data(), 1, MPI_INT,
-        &local_slice_size, 1, MPI_INT,
-        0, MPI_COMM_WORLD
-    );
-
-    // Register the Edge type with MPI
-    MPI_Datatype edge_type;
-    MPI_Type_contiguous(4, MPI_INT64_T, &edge_type);
-    MPI_Type_commit(&edge_type);
-
-    // Allocate local storage for this rank's slices
-    edges.resize(local_slice_size * args.num_batches);
-    Edge * local_slice_begin = edges.data();
-    for (int batch_id = 0; batch_id < args.num_batches; ++batch_id)
-    {
-        // Scatter the slices in this batch to the ranks
-        MPI_Scatterv(
-            // Source buffer is always the global list of edges in rank 0
-            all_edges.data(),
-            // List of how big each rank's slice is ( edges per batch divided by number of ranks, +/- 1)
-            edges_per_slice.data(),
-            // Start positions of each slice within all_edges
-            &displacements[0],
-            // Send data type = Edge
-            edge_type,
-            // Destination buffer is pointer into slice of local edge list
-            local_slice_begin,
-            // Number of edges in this rank's slice
-            local_slice_size,
-            // Receive data type = Edge
-            edge_type,
-            // Scatter from rank 0, use global communicator
-            0, MPI_COMM_WORLD
-        );
-
-        // Move to the next batch in the source and destination buffers
-        displacements += edges_per_batch;
-        local_slice_begin += local_slice_size;
-    }
-#endif
-
-    // Store iterators to the beginning and end of each batch
-    // BUG In the MPI case, batch_size is wrong, because we have divided the edges between ranks
-#ifdef USE_MPI
-    logger << "FIXME: Need to recalculate batch size\n";
-    die();
-#endif
-
     for (int i = 0; i < num_batches; ++i)
     {
         size_t offset = i * args.batch_size;
@@ -519,6 +425,8 @@ Dataset::Dataset(Args args)
         auto end = edges.begin() + offset + args.batch_size;
         batches.push_back(Batch(begin, end));
     }
+
+    } // end MPI_RANK_0_ONLY
 }
 
 void
@@ -592,16 +500,24 @@ true_div(X x, Y y)
 int64_t
 Dataset::getTimestampForWindow(int64_t batchId) const
 {
+    int64_t timestamp;
+    MPI_RANK_0_ONLY {
     // Calculate width of timestamp window
     int64_t window_time = round_down(args.window_size * (max_timestamp - min_timestamp));
     // Get the timestamp of the last edge in the current batch
     int64_t latest_time = (batches[batchId].end()-1)->timestamp;
 
-    return std::max(min_timestamp, latest_time - window_time);
+    timestamp = std::max(min_timestamp, latest_time - window_time);
+    }
+
+    MPI_BROADCAST_RESULT(timestamp);
+    return timestamp;
 };
 
 bool
 Dataset::enableAlgsForBatch(int64_t batch_id) const {
+    bool enable;
+    MPI_RANK_0_ONLY {
     // How many batches in each epoch, on average?
     double batches_per_epoch = true_div(batches.size(), args.num_epochs);
     // How many algs run before this batch?
@@ -609,12 +525,16 @@ Dataset::enableAlgsForBatch(int64_t batch_id) const {
     // How many algs should run after this batch?
     int64_t batches_after = round_down(true_div((batch_id + 1), batches_per_epoch));
     // If the count changes between this batch and the next, we should run an alg now
-    return (batches_after - batches_before) > 0;
+    enable = (batches_after - batches_before) > 0;
+    }
+    MPI_BROADCAST_RESULT(enable);
+    return enable;
 }
 
 shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId) const
 {
+    MPI_RANK_0_ONLY {
     int64_t threshold = getTimestampForWindow(batchId);
     const Batch& b = batches[batchId];
     switch (args.sort_mode)
@@ -634,18 +554,24 @@ Dataset::getBatch(int64_t batchId) const
         }
         default: assert(0); return nullptr;
     }
+    }
+    return nullptr;
 }
 
 bool
 Dataset::isDirected() const
 {
-    return directed;
+    bool retval = directed;
+    MPI_BROADCAST_RESULT(retval);
+    return retval;
 }
 
 int64_t
 Dataset::getMaxVertexId() const
 {
-    return max_vertex_id;
+    int64_t retval = max_vertex_id;
+    MPI_BROADCAST_RESULT(retval);
+    return retval;
 }
 
 int64_t Dataset::getNumBatches() const {

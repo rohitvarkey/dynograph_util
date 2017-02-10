@@ -10,7 +10,24 @@
 #include <algorithm>
 #include <assert.h>
 #ifdef USE_MPI
-#include <omp.h>
+#include <boost/mpi.hpp>
+#include <boost/mpi/collectives.hpp>
+
+#define MPI_RANK_0_ONLY \
+if (::boost::mpi::communicator().rank() == 0)
+
+//int rank;
+//MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//if (rank == 0)
+
+#define MPI_BROADCAST_RESULT(X) \
+::boost::mpi::broadcast(boost::mpi::communicator(), X, 0)
+
+#else
+
+#define MPI_RANK_0_ONLY
+#define MPI_BROADCAST_RESULT(X)
+
 #endif
 
 namespace DynoGraph {
@@ -206,29 +223,12 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
         sources = find_high_degree_vertices(num_sources, nv, get_degree);
 
 #ifdef USE_MPI
-        // For now, Boost only has bfs and sssp, which require just one source vertex
         assert(num_sources == 1);
-        // Register the vertex_degree type with MPI
-        MPI_Datatype vertex_degree_type;
-        MPI_Type_contiguous(2, MPI_INT64_T, &vertex_degree_type);
-        MPI_Type_commit(&vertex_degree_type);
-        // Set the local max-degree vertex
-        vertex_degree local_vertex_degree(sources[0], get_degree(sources[0]));
-        // Gather all in rank 0
-        int comm_size;
-        MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
-        std::vector<vertex_degree> gathered_vertex_degrees(comm_size);
-        MPI_Gather(
-            &local_vertex_degree, 1, vertex_degree_type,
-            gathered_vertex_degrees.data(), 1, vertex_degree_type,
-            0, MPI_COMM_WORLD
+        vertex_degree local_degree = vertex_degree(sources[0], get_degree(sources[0]));
+        boost::mpi::all_reduce(boost::mpi::communicator(), local_degree,
+            [](const vertex_degree &a, const vertex_degree &b) { return a < b ? b : a; }
         );
-        // Find max-degree vertex of all ranks
-        vertex_degree global_vertex_degree = *std::max_element(
-            gathered_vertex_degrees.begin(), gathered_vertex_degrees.end());
-        // Broadcast to all ranks
-        MPI_Bcast(&global_vertex_degree, 1, vertex_degree_type, 0, MPI_COMM_WORLD);
-        sources = {global_vertex_degree.vertex_id};
+        sources[0] = local_degree.vertex_id;
 #endif
     }
     return sources;
@@ -245,17 +245,13 @@ public:
     // Print to error stream with prefix
     template <class T>
     Logger& operator<<(T&& x) {
-#ifdef USE_MPI
-        // Only print logging statements in rank 0 to keep output clean
-        int rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        if (rank != 0) { return *this; }
-#endif
+        MPI_RANK_0_ONLY {
         oss << std::forward<T>(x);
         // Once we have a full line, print with prefix
         if (oss.str().back() == '\n') {
             out << msg << oss.str();
             oss.str("");
+        }
         }
         return *this;
     }
@@ -385,3 +381,8 @@ run(int argc, char **argv)
 void die();
 
 }; // end namespace DynoGraph
+
+#ifdef USE_MPI
+BOOST_IS_BITWISE_SERIALIZABLE(DynoGraph::vertex_degree);
+BOOST_IS_BITWISE_SERIALIZABLE(DynoGraph::Edge)
+#endif
