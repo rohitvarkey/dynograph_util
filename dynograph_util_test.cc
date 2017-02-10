@@ -205,6 +205,10 @@ INSTANTIATE_TEST_CASE_P(SortModeDoesntAffectEdgeCount, SortModeTest, ::testing::
 
 int main(int argc, char **argv)
 {
+#ifdef USE_MPI
+    // Initialize MPI
+    boost::mpi::environment env(argc, argv);
+#endif
     DatasetTest::init_arg_list();
     SortModeTest::init_arg_list();
     ::testing::InitGoogleTest(&argc, argv);
