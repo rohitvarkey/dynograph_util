@@ -219,7 +219,8 @@ TYPED_TEST_P(CompareWithReferenceTest, MatchEdgeCount)
             this->test_impl.get_num_edges(),
             this->ref_impl.get_num_edges()
         );
-        for (int64_t v = 0; v < this->test_impl.get_num_vertices(); ++v)
+        int64_t nv = this->test_impl.get_num_vertices();
+        for (int64_t v = 0; v < nv; ++v)
         {
             ASSERT_EQ(
                 this->test_impl.get_out_degree(v),
