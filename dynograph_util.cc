@@ -555,7 +555,8 @@ Dataset::getBatch(int64_t batchId) const
         default: assert(0); return nullptr;
     }
     }
-    return nullptr;
+    // For MPI, ranks other than zero get an empty batch
+    return make_shared<Batch>(edges.end(), edges.end());
 }
 
 bool
