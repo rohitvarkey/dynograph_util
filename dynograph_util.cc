@@ -534,8 +534,8 @@ Dataset::enableAlgsForBatch(int64_t batch_id) const {
 shared_ptr<Batch>
 Dataset::getBatch(int64_t batchId) const
 {
-    MPI_RANK_0_ONLY {
     int64_t threshold = getTimestampForWindow(batchId);
+    MPI_RANK_0_ONLY {
     const Batch& b = batches[batchId];
     switch (args.sort_mode)
     {
