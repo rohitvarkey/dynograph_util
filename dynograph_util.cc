@@ -562,7 +562,8 @@ Dataset::getBatch(int64_t batchId) const
 bool
 Dataset::isDirected() const
 {
-    bool retval = directed;
+    bool retval;
+    MPI_RANK_0_ONLY { retval = directed; }
     MPI_BROADCAST_RESULT(retval);
     return retval;
 }
@@ -571,6 +572,7 @@ int64_t
 Dataset::getMaxVertexId() const
 {
     int64_t retval = max_vertex_id;
+    MPI_RANK_0_ONLY { retval = max_vertex_id; }
     MPI_BROADCAST_RESULT(retval);
     return retval;
 }
