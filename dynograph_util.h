@@ -115,6 +115,7 @@ public:
 
     int64_t getTimestampForWindow(int64_t batchId) const;
     std::shared_ptr<Batch> getBatch(int64_t batchId) const;
+    int64_t getNumBatches() const;
 
     bool isDirected() const;
     int64_t getMaxVertexId() const;
@@ -288,7 +289,8 @@ run(int argc, char **argv)
         // Step through one batch at a time
         // Epoch will be incremented as necessary
         int64_t epoch = 0;
-        for (int64_t batch_id = 0; batch_id < dataset.batches.size(); ++batch_id)
+        int64_t num_batches = dataset.getNumBatches();
+        for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id)
         {
             hooks.set_attr("batch", batch_id);
             hooks.set_attr("epoch", epoch);
