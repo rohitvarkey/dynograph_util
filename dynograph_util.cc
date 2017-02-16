@@ -89,6 +89,7 @@ Args::parse(int argc, char *argv[])
     args.sort_mode = Args::SORT_MODE::UNSORTED;
     args.window_size = 1.0;
     args.num_trials = 1;
+    args.num_alg_trials = 1;
 
     int option_index;
     while (1)
@@ -172,6 +173,10 @@ Args::validate() const
     if (num_trials < 1) {
         oss << "\t--num-trials must be positive\n";
     }
+    if (num_alg_trials < 1) {
+        oss << "\t--num-alg-trials must be positive\n";
+    }
+
     return oss.str();
 }
 
@@ -196,6 +201,7 @@ DynoGraph::operator <<(std::ostream& os, const Args& args)
         << "\"batch_size\":"  << args.batch_size << ","
         << "\"window_size\":" << args.window_size << ","
         << "\"num_trials\":"  << args.num_trials << ","
+        << "\"num_alg_trials\":"  << args.num_alg_trials << ","
         << "\"sort_mode\":\""   << args.sort_mode << "\",";
 
     os << "\"alg_names\":[";
