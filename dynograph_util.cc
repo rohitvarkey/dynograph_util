@@ -578,6 +578,13 @@ int64_t Dataset::getNumBatches() const {
     return retval;
 };
 
+int64_t Dataset::getNumEdges() const {
+    int64_t retval;
+    MPI_RANK_0_ONLY { retval = static_cast<int64_t>(edges.size()); }
+    MPI_BROADCAST_RESULT(retval);
+    return retval;
+};
+
 // Partial implementation of DynamicGraph
 
 DynamicGraph::DynamicGraph(const Args args, int64_t max_vertex_id)

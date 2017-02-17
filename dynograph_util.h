@@ -105,16 +105,16 @@ private:
     int64_t min_timestamp;
     int64_t max_timestamp;
 
-public:
-
     std::vector<Edge> edges;
     std::vector<Batch> batches;
 
+public:
     Dataset(Args args);
 
     int64_t getTimestampForWindow(int64_t batchId) const;
     std::shared_ptr<Batch> getBatch(int64_t batchId) const;
     int64_t getNumBatches() const;
+    int64_t getNumEdges() const;
 
     bool isDirected() const;
     int64_t getMaxVertexId() const;

@@ -52,23 +52,25 @@ TEST_P(DatasetTest, LoadDatasetCorrectly) {
     const int64_t actual_num_edges = 44500;
 
     // Check that the right number of edges were loaded
-    EXPECT_EQ(dataset.edges.size(), actual_num_edges);
+    EXPECT_EQ(dataset.getNumEdges(), actual_num_edges);
     // Check that the dataset was partitioned into the right number of batches
-    EXPECT_EQ(dataset.batches.size(), actual_num_edges / args.batch_size);
-    for (size_t i = 0; i < dataset.batches.size(); ++i) {
-        EXPECT_EQ(dataset.batches[i].size(), args.batch_size);
+    EXPECT_EQ(dataset.getNumBatches(), actual_num_edges / args.batch_size);
+    for (int64_t i = 0; i < dataset.getNumBatches(); ++i) {
+        EXPECT_EQ(dataset.getBatch(i)->size(), args.batch_size);
     }
 }
 
 TEST_P(DatasetTest, SetWindowThresholdCorrectly) {
     const Args &args = GetParam();
 
-    double first_filtered_batch = args.window_size * dataset.batches.size();
-    int64_t min_ts = dataset.edges.front().timestamp;
-    int64_t max_ts = dataset.edges.back().timestamp;
+    double first_filtered_batch = args.window_size * dataset.getNumBatches();
+    const Edge& first_edge = *dataset.getBatch(0)->begin();
+    const Edge& last_edge = *(dataset.getBatch(dataset.getNumBatches()-1)->end()-1);
+    int64_t min_ts = first_edge.timestamp;
+    int64_t max_ts = last_edge.timestamp;
     EXPECT_GE(max_ts, min_ts);
 
-    for (size_t i = 0; i < dataset.batches.size(); ++i)
+    for (int64_t i = 0; i < dataset.getNumBatches(); ++i)
     {
         int64_t threshold = dataset.getTimestampForWindow(i);
 
@@ -86,14 +88,14 @@ TEST_P(DatasetTest, DontSkipAnyEpochs) {
     const Args &args = GetParam();
 
     int64_t actual_num_epochs = 0;
-    for (size_t i = 0; i < dataset.batches.size(); ++i)
+    for (int64_t i = 0; i < dataset.getNumBatches(); ++i)
     {
         bool run_epoch = dataset.enableAlgsForBatch(i);
         if (run_epoch) {
             actual_num_epochs += 1;
         }
         // There should always be an epoch after the last batch
-        if (i == dataset.batches.size() - 1) {
+        if (i == dataset.getNumBatches() - 1) {
             EXPECT_EQ(run_epoch, true);
         }
     }
@@ -150,7 +152,7 @@ TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
     auto values_match = [](int64_t a, int64_t b, int64_t c) { return a == b && b == c; };
 
     // Make sure the resulting graphs are the same in each batch, regardless of sort mode
-    for (int64_t batch = 0; batch < unsorted_dataset.batches.size(); ++batch)
+    for (int64_t batch = 0; batch < unsorted_dataset.getNumBatches(); ++batch)
     {
         // Do deletions and check the graphs against each other
         //    snapshot_graph is omitted from this comparison, because we don't do deletions in snapshot mode
