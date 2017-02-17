@@ -162,6 +162,8 @@ public:
     virtual int64_t get_num_vertices() const = 0;
     // Return the number of unique edges in the graph
     virtual int64_t get_num_edges() const = 0;
+    // Return a list of the n vertices with the highest degrees
+    virtual std::vector<int64_t> get_high_degree_vertices(int64_t n) const = 0;
 };
 
 // Holds a vertex id and its out degree
@@ -172,66 +174,10 @@ struct vertex_degree
     vertex_degree();
     vertex_degree(int64_t vertex_id, int64_t out_degree);
 };
-bool operator < (const vertex_degree &a, const vertex_degree &b);
-
-/**
- * Returns a list of the highest N vertices in the graph
- * @param top_n Number of vertex ID's to return
- * @param nv Total number of vertices in the graph
- * @param get_degree Function which returns the degree of the specified vertex
- *        int64_t get_degree(int64_t vertex_id);
- * @return list of the top_n vertices with highest degree
- */
-template <typename degree_getter, typename vertex_t>
-std::vector<vertex_t>
-find_high_degree_vertices(vertex_t top_n, vertex_t nv, degree_getter get_degree)
-{
-    top_n = std::min(top_n, nv);
-
-    std::vector<vertex_degree> degrees(nv);
-    #pragma omp parallel for
-    for (vertex_t i = 0; i < nv; ++i) {
-        int64_t degree = get_degree(i);
-        degrees[i] = vertex_degree(i, degree);
-    }
-
-    // order by degree descending, vertex_id ascending
-    std::sort(degrees.begin(), degrees.end());
-
-    degrees.erase(degrees.begin() + top_n, degrees.end());
-    std::vector<vertex_t> ids(degrees.size());
-    std::transform(degrees.begin(), degrees.end(), ids.begin(),
-        [](const vertex_degree &d) { return d.vertex_id; });
-    return ids;
-}
-
-template<typename graph_t>
-std::vector<int64_t>
-pick_sources_for_alg(std::string alg_name, graph_t &graph)
-{
-    int64_t num_sources;
-    if (alg_name == "bfs" || alg_name == "sssp") { num_sources = 1; }
-    else if (alg_name == "bc") { num_sources = 128; }
-    else { num_sources = 0; }
-
-    int64_t nv = graph.get_num_vertices();
-    num_sources = std::min(num_sources, nv);
-
-    auto get_degree = [&graph](int64_t i){ return graph.get_out_degree(i); };
-    std::vector<int64_t> sources;
-    if (num_sources > 0) {
-        sources = find_high_degree_vertices(num_sources, nv, get_degree);
-
-#ifdef USE_MPI
-        assert(num_sources == 1);
-        vertex_degree local_degree = vertex_degree(sources[0], get_degree(sources[0]));
-        boost::mpi::all_reduce(boost::mpi::communicator(), local_degree,
-            [](const vertex_degree &a, const vertex_degree &b) { return a < b ? b : a; }
-        );
-        sources[0] = local_degree.vertex_id;
-#endif
-    }
-    return sources;
+inline bool
+operator < (const vertex_degree &a, const vertex_degree &b) {
+    if (a.out_degree != b.out_degree) { return a.out_degree < b.out_degree; }
+    return a.vertex_id > b.vertex_id;
 }
 
 class Logger
@@ -359,7 +305,11 @@ run(int argc, char **argv)
                     hooks.set_stat("alg_trial", alg_trial);
                     for (std::string alg_name : args.alg_names)
                     {
-                        std::vector<int64_t> sources = pick_sources_for_alg(alg_name, graph);
+                        int64_t num_sources;
+                        if (alg_name == "bfs" || alg_name == "sssp") { num_sources = 1; }
+                        else if (alg_name == "bc") { num_sources = 128; }
+                        else { num_sources = 0; }
+                        std::vector<int64_t> sources = graph.get_high_degree_vertices(num_sources);
                         if (sources.size() == 1) {
                             hooks.set_stat("source_vertex", sources[0]);
                         }

@@ -595,12 +595,6 @@ vertex_degree::vertex_degree() {}
 vertex_degree::vertex_degree(int64_t vertex_id, int64_t out_degree)
 : vertex_id(vertex_id), out_degree(out_degree) {}
 
-bool
-DynoGraph::operator < (const vertex_degree &a, const vertex_degree &b) {
-    if (a.out_degree != b.out_degree) { return a.out_degree < b.out_degree; }
-    return a.vertex_id > b.vertex_id;
-}
-
 // Implementation of Logger
 Logger::Logger (std::ostream &out) : out(out) {}
 

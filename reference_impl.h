@@ -93,6 +93,27 @@ public:
         return num_edges;
     }
 
+    virtual std::vector<int64_t> get_high_degree_vertices(int64_t n) const
+    {
+        // Get a list of the degree of every vertex
+        using DynoGraph::vertex_degree;
+        std::vector<vertex_degree> degrees(graph.size());
+        std::transform(graph.begin(), graph.end(), degrees.begin(),
+            [](const std::pair<const int64_t, edge_list>& vertex) {
+                return vertex_degree(vertex.first, vertex.second.size());
+            }
+        );
+        // Sort in order of increasing degree
+        std::sort(degrees.begin(), degrees.end());
+        // Chop off the top n
+        degrees.erase(degrees.begin(), degrees.end() - n);
+        // Return list of vertex ID's
+        std::vector<int64_t> sources(n);
+        std::transform(degrees.begin(), degrees.end(), sources.begin(),
+            [](const vertex_degree &a) { return a.vertex_id; });
+        return sources;
+    }
+
     void dump_edges() const
     {
         for (const std::pair<const int64_t, edge_list>& vertex : graph)

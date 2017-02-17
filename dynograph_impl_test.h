@@ -171,6 +171,43 @@ TYPED_TEST_P(ImplTest, TimestampUpdate)
     EXPECT_EQ(this->impl.get_out_degree(1), 2);
 }
 
+// Make sure it can pick the highest degree vertices
+TYPED_TEST_P(ImplTest, PickSourceVertex)
+{
+    // Create a test graph
+    // vertex 2 has degree 4
+    // vertex 3 and 1 have degree 3, so 1 should be chosen
+    std::vector<Edge> edges1 = {
+        {9, 3, 0, 100},
+        {9, 4, 0, 200},
+        {9, 5, 0, 300},
+        {2, 3, 0, 400},
+        {2, 4, 0, 500},
+        {2, 5, 0, 500},
+        {2, 6, 0, 600},
+        {3, 7, 0, 700},
+        {3, 8, 0, 800},
+        {3, 9, 0, 900}
+    };
+    Batch batch1(edges1.begin(), edges1.end());
+    this->impl.insert_batch(batch1);
+    EXPECT_EQ(this->impl.get_num_edges(), edges1.size());
+
+    std::vector<int64_t> vertices;
+    vertices = this->impl.get_high_degree_vertices(0);
+    EXPECT_EQ(vertices.size(), 0);
+
+    vertices = this->impl.get_high_degree_vertices(1);
+    EXPECT_EQ(vertices.size(), 1);
+    EXPECT_EQ(vertices[0], 2);
+
+    vertices = this->impl.get_high_degree_vertices(2);
+    EXPECT_EQ(vertices.size(), 2);
+    EXPECT_TRUE(std::find(vertices.begin(), vertices.end(), 2) != vertices.end());
+    EXPECT_TRUE(std::find(vertices.begin(), vertices.end(), 3) != vertices.end());
+
+}
+
 // All tests in this file must be registered here
 REGISTER_TYPED_TEST_CASE_P( ImplTest
     ,CheckAlgs
@@ -180,6 +217,7 @@ REGISTER_TYPED_TEST_CASE_P( ImplTest
     ,GetOutDegree
     ,DeleteOlderThan
     ,TimestampUpdate
+    ,PickSourceVertex
 );
 
 template <typename graph_t>
@@ -207,7 +245,7 @@ public:
 };
 TYPED_TEST_CASE_P(CompareWithReferenceTest);
 
-TYPED_TEST_P(CompareWithReferenceTest, MatchEdgeCount)
+TYPED_TEST_P(CompareWithReferenceTest, MatchGraphState)
 {
     for (uint64_t batch = 0; batch < this->dataset.batches.size(); ++batch)
     {
@@ -218,6 +256,10 @@ TYPED_TEST_P(CompareWithReferenceTest, MatchEdgeCount)
         ASSERT_EQ(
             this->test_impl.get_num_edges(),
             this->ref_impl.get_num_edges()
+        );
+        ASSERT_EQ(
+            this->test_impl.get_high_degree_vertices(1)[0],
+            this->ref_impl.get_high_degree_vertices(1)[0]
         );
         int64_t nv = this->test_impl.get_num_vertices();
         for (int64_t v = 0; v < nv; ++v)
@@ -230,7 +272,7 @@ TYPED_TEST_P(CompareWithReferenceTest, MatchEdgeCount)
     }
 }
 
-REGISTER_TYPED_TEST_CASE_P( CompareWithReferenceTest , MatchEdgeCount);
+REGISTER_TYPED_TEST_CASE_P( CompareWithReferenceTest , MatchGraphState);
 
 // To instantiate this test, create a source file that includes this header and these lines:
 //      INSTANTIATE_TYPED_TEST_CASE_P(TEST_NAME_HERE, ImplTest, ClassThatImplementsDynamicGraph);
