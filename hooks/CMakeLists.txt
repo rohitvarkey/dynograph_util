@@ -47,17 +47,6 @@ else ()
 	message(FATAL_ERROR "Invalid value for HOOKS_TYPE : ${HOOKS_TYPE}")
 endif()
 
-if(OPENMP_FOUND)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-endif()
-
-if (MPI_FOUND)
-  include_directories(${MPI_CXX_INCLUDE_PATH})
-  add_definitions(-DUSE_MPI)
-endif()
-
 # Use the gnu9x C standard
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu9x")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
