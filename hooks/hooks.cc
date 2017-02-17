@@ -5,7 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include "json.hpp"
-
+#include "../mpi_macros.h"
 #include "edge_count.h"
 // Helper class to manage edge count hooks
 struct edge_count_wrapper
@@ -29,7 +29,7 @@ struct edge_count_wrapper
 #endif
 
 #if defined(USE_MPI)
-#include <mpi.h>
+#include "../mpi_macros.h"
 #endif
 
 #if defined(ENABLE_SNIPER_HOOKS)
@@ -152,9 +152,7 @@ class Hooks::impl
     void __attribute__ ((noinline))
     region_begin(string name)
     {
-#if defined(USE_MPI)
-        MPI_Barrier(MPI_COMM_WORLD);
-#endif
+        MPI_BARRIER();
         // Check for mismatched begin/end pairs
         if (region_name != "") {
             cerr << "ERROR: called region_begin inside region\n";
@@ -244,12 +242,8 @@ class Hooks::impl
         }
 #endif
 
-#if defined(USE_MPI)
         combine_results(results);
-        int rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        if (rank == 0) {
-#endif
+        MPI_RANK_0_ONLY {
 
         // Set region name in output
         results["region_name"] = region_name;
@@ -266,63 +260,45 @@ class Hooks::impl
         // Finally, send it to the output stream
         out << std::setw(json_output_indent_level) << results << std::endl;
 
-#if defined(USE_MPI)
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-#endif
+        } // end MPI_RANK_0_ONLY
+        MPI_BARRIER();
+
         // Reset for next region
         region_name = "";
     }
 
-#if defined(USE_MPI)
     void
     combine_results(json &results)
     {
+#if defined(USE_MPI)
         // Combine results from each rank so only rank 0 prints to stdout
-        int rank, comm_size;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+        auto comm = boost::mpi::communicator();
+        int rank = comm.rank();
+        int comm_size = comm.size();
 
         // Serialize results to string
         string local_results_string = results.dump();
         // Get string lengths from each process
         int32_t local_string_length = local_results_string.size();
         vector<int32_t> string_lengths(comm_size);
-        MPI_Gather(
-            &local_string_length, 1, MPI_INT32_T,
-            string_lengths.data(), 1, MPI_INT32_T,
-            0, MPI_COMM_WORLD
-        );
+        boost::mpi::gather(comm, local_string_length, string_lengths, 0);
 
         // Allocate storage for final string
         int total_string_length = std::accumulate(string_lengths.begin(), string_lengths.end(), 0);
         vector<char> global_results_vec(total_string_length);
-        // Figure out where to put each incoming string
-        std::valarray<int32_t> displacements(comm_size + 1);
-        std::partial_sum(string_lengths.begin(), string_lengths.end(), begin(displacements));
-        // Prefix sum gave us the end of each string, but we need the beginnings, so shift the whole list to the right
-        // We have one extra spot at the end of the string, so we aren't losing anything
-        displacements = displacements.shift(-1);
-
         // Get strings from each process
-        MPI_Gatherv(
-            // Some old versions of mpi.h aren't const-correct
-            const_cast<char*>(local_results_string.c_str()), local_results_string.size(), MPI_CHAR,
-            global_results_vec.data(), string_lengths.data(), &displacements[0], MPI_CHAR,
-            0, MPI_COMM_WORLD
-        );
+        boost::mpi::gatherv(comm, local_results_string.c_str(), local_results_string.size(),
+                global_results_vec.data(), string_lengths, 0);
 
         if (rank == 0)
         {
             // Parse out the results string from each process
             vector<json> results_by_pid(comm_size);
-            for (int i = 0; i < comm_size; ++i)
+            char * s = global_results_vec.data();
+            for (int i = 0; i < comm_size; s += string_lengths[i++])
             {
-                // Find the string position in the data
-                char * s = global_results_vec.data() + displacements[i];
-                uint32_t len = displacements[i + 1] - displacements[i];
                 // Parse back into json object
-                results_by_pid[i] = json::parse(string(s,len));
+                results_by_pid[i] = json::parse(string(s,string_lengths[i]));
             }
 
             // For each top-level key, build an array of values from each pid for that key
@@ -336,9 +312,10 @@ class Hooks::impl
                 }
             }
         }
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
+        comm.barrier();
 #endif
+    }
+
 
     template<typename T>
     void

@@ -8,12 +8,6 @@
 #include <string>
 #include <getopt.h>
 
-#if defined(USE_MPI)
-#include <mpi.h>
-#include <valarray>
-
-#endif
-
 #include "dynograph_util.h"
 
 using namespace DynoGraph;

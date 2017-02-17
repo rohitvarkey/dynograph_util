@@ -9,26 +9,8 @@
 #include <iostream>
 #include <algorithm>
 #include <assert.h>
-#ifdef USE_MPI
-#include <boost/mpi.hpp>
-#include <boost/mpi/collectives.hpp>
 
-#define MPI_RANK_0_ONLY \
-if (::boost::mpi::communicator().rank() == 0)
-
-//int rank;
-//MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//if (rank == 0)
-
-#define MPI_BROADCAST_RESULT(X) \
-::boost::mpi::broadcast(boost::mpi::communicator(), X, 0)
-
-#else
-
-#define MPI_RANK_0_ONLY
-#define MPI_BROADCAST_RESULT(X)
-
-#endif
+#include "mpi_macros.h"
 
 namespace DynoGraph {
 
