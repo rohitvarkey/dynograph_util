@@ -55,8 +55,10 @@ TEST_P(DatasetTest, LoadDatasetCorrectly) {
     EXPECT_EQ(dataset.getNumEdges(), actual_num_edges);
     // Check that the dataset was partitioned into the right number of batches
     EXPECT_EQ(dataset.getNumBatches(), actual_num_edges / args.batch_size);
-    for (int64_t i = 0; i < dataset.getNumBatches(); ++i) {
-        EXPECT_EQ(dataset.getBatch(i)->size(), args.batch_size);
+    if (args.window_size == 1.0) {
+        for (int64_t i = 0; i < dataset.getNumBatches(); ++i) {
+            EXPECT_EQ(dataset.getBatch(i)->size(), args.batch_size);
+        }
     }
 }
 
