@@ -247,7 +247,7 @@ TYPED_TEST_CASE_P(CompareWithReferenceTest);
 
 TYPED_TEST_P(CompareWithReferenceTest, MatchGraphState)
 {
-    for (uint64_t batch = 0; batch < this->dataset.batches.size(); ++batch)
+    for (uint64_t batch = 0; batch < this->dataset.getNumBatches(); ++batch)
     {
         auto b = this->dataset.getBatch(batch);
         this->test_impl.insert_batch(*b);
