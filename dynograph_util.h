@@ -3,6 +3,7 @@
 #include <hooks.h>
 #include <inttypes.h>
 #include <vector>
+#include <map>
 #include <string>
 #include <memory>
 #include <sstream>
@@ -137,7 +138,15 @@ public:
     // Insert the batch of edges into the graph
     virtual void insert_batch(const Batch& batch) = 0;
     // Run the specified algorithm
-    virtual void update_alg(const std::string &alg_name, const std::vector<int64_t> &sources) = 0;
+    virtual void update_alg(
+        // Name of algorithm to run
+        const std::string &alg_name,
+        // Source vertex(s), (applies to bfs, sampled bc, sssp, etc.)
+        const std::vector<int64_t> &sources,
+        // Contains the results from the previous epoch (for incremental algorithms)
+        // Results should be written to this array
+        std::vector<int64_t> &data
+    ) = 0;
     // Return the degree of the specified vertex
     virtual int64_t get_out_degree(int64_t vertex_id) const = 0;
     // Return the number of vertices in the graph
@@ -190,6 +199,20 @@ public:
     virtual ~Logger();
 };
 
+class AlgDataManager
+{
+private:
+    std::map<std::string, std::vector<int64_t>> last_epoch_data;
+    std::map<std::string, std::vector<int64_t>> current_epoch_data;
+    std::string path;
+public:
+    AlgDataManager(int64_t nv, std::vector<std::string> alg_names);
+    void next_epoch();
+    void rollback();
+    void dump(int64_t epoch) const;
+    std::vector<int64_t>& get_data_for_alg(std::string alg_name);
+};
+
 template<typename graph_t>
 void
 run(int argc, char **argv)
@@ -200,6 +223,9 @@ run(int argc, char **argv)
     DynoGraph::Args args = DynoGraph::Args::parse(argc, argv);
     // Load graph data in from the file in batches
     DynoGraph::Dataset dataset(args);
+    int64_t max_vertex_id = dataset.getMaxVertexId();
+    // Initialize a buffer of data for each algorithm
+    DynoGraph::AlgDataManager alg_data_manager(max_vertex_id, args.alg_names);
     DynoGraph::Logger &logger = DynoGraph::Logger::get_instance();
     Hooks& hooks = Hooks::getInstance();
     typedef DynoGraph::Args::SORT_MODE SORT_MODE;
@@ -208,7 +234,7 @@ run(int argc, char **argv)
     {
         hooks.set_attr("trial", trial);
         // Initialize the graph data structure
-        graph_t graph(args, dataset.getMaxVertexId());
+        graph_t graph(args, max_vertex_id);
 
         // Step through one batch at a time
         // Epoch will be incremented as necessary
@@ -234,7 +260,6 @@ run(int argc, char **argv)
                 if (args.window_size != 1.0)
                 {
                     logger << "Deleting edges older than " << threshold << "\n";
-
                     hooks.set_stat("num_vertices", graph.get_num_vertices());
                     hooks.set_stat("num_edges", graph.get_num_edges());
                     hooks.region_begin("deletions");
@@ -260,8 +285,10 @@ run(int argc, char **argv)
                     // because this would allocate a new graph before deallocating the old one.
                     // We probably won't have enough memory for that.
                     // Instead, use an explicit destructor call followed by placement new
+                    hooks.region_begin("destroy");
                     graph.~graph_t();
-                    new(&graph) graph_t(args, dataset.getMaxVertexId());
+                    new(&graph) graph_t(args, max_vertex_id);
+                    hooks.region_end();
 
                     // This batch will be a cumulative, filtered snapshot of all the edges in previous batches
                     hooks.region_begin("preprocess");
@@ -273,20 +300,21 @@ run(int argc, char **argv)
                     hooks.region_begin("insertions");
                     graph.insert_batch(*batch);
                     hooks.region_end();
-
                 }
             }
 
             // Graph algorithm benchmarks
             if (dataset.enableAlgsForBatch(batch_id)) {
-                hooks.set_stat("num_vertices", graph.get_num_vertices());
-                hooks.set_stat("num_edges", graph.get_num_edges());
 
                 for (int64_t alg_trial = 0; alg_trial < args.num_alg_trials; ++alg_trial)
                 {
-                    hooks.set_stat("alg_trial", alg_trial);
+                    // When we do multiple trials, algs should start with the same data each time
+                    if (alg_trial != 0) { alg_data_manager.rollback(); }
+
+                    // Run each alg
                     for (std::string alg_name : args.alg_names)
                     {
+                        // Pick source vertex(s)
                         int64_t num_sources;
                         if (alg_name == "bfs" || alg_name == "sssp") { num_sources = 1; }
                         else if (alg_name == "bc") { num_sources = 128; }
@@ -295,12 +323,18 @@ run(int argc, char **argv)
                         if (sources.size() == 1) {
                             hooks.set_stat("source_vertex", sources[0]);
                         }
+
                         logger << "Running " << alg_name << " for epoch " << epoch << "\n";
+                        hooks.set_stat("alg_trial", alg_trial);
+                        hooks.set_stat("num_vertices", graph.get_num_vertices());
+                        hooks.set_stat("num_edges", graph.get_num_edges());
                         hooks.region_begin(alg_name);
-                        graph.update_alg(alg_name, sources);
+                        graph.update_alg(alg_name, sources, alg_data_manager.get_data_for_alg(alg_name));
                         hooks.region_end();
                     }
                 }
+                alg_data_manager.dump(epoch);
+                alg_data_manager.next_epoch();
                 epoch += 1;
                 assert(epoch <= args.num_epochs);
             }

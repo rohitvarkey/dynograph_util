@@ -75,7 +75,7 @@ public:
         }
     }
     // Run the specified algorithm
-    virtual void update_alg(const std::string &alg_name, const std::vector<int64_t> &sources) {};
+    virtual void update_alg(const std::string &alg_name, const std::vector<int64_t> &sources, std::vector<int64_t> &data) {};
     // Return the degree of the specified vertex
     virtual int64_t get_out_degree(int64_t vertex_id) const
     {

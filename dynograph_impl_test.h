@@ -38,10 +38,13 @@ TYPED_TEST_P(ImplTest, CheckAlgs)
     Batch batch(edges.begin(), edges.end());
     this->impl.insert_batch(batch);
 
+    // Allocate data for alg
+    std::vector<int64_t> alg_data(1000);
+
     // Run all supported algs
     for (auto alg_name : this->impl.args.alg_names)
     {
-        this->impl.update_alg(alg_name, {1});
+        this->impl.update_alg(alg_name, {1}, alg_data);
     }
     EXPECT_EQ(this->impl.get_num_edges(), 3);
 };
