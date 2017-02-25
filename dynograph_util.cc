@@ -679,6 +679,8 @@ AlgDataManager::dump(int64_t epoch) const
         if (fp) {
             fwrite(ptr, sizeof(int64_t), sz, fp);
             fclose(fp);
+        } else {
+            DynoGraph::Logger::get_instance() << "WARNING: Unable to dump alg results to " << full_path << "\n";
         }
     }
 }
