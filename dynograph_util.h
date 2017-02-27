@@ -75,6 +75,7 @@ public:
     const Edge& operator[] (size_t i) const;
     size_t size() const;
     bool is_directed() const;
+    virtual ~Batch() = default;
 protected:
     iterator begin_iter, end_iter;
 };
@@ -94,7 +95,22 @@ public:
     virtual int64_t num_vertices_affected() const;
 };
 
-class Dataset
+class IDataset
+{
+public:
+    virtual int64_t getTimestampForWindow(int64_t batchId) const = 0;
+    virtual std::shared_ptr<Batch> getBatch(int64_t batchId) = 0;
+    virtual int64_t getNumBatches() const = 0;
+    virtual int64_t getNumEdges() const = 0;
+    virtual bool isDirected() const = 0;
+    virtual int64_t getMaxVertexId() const = 0;
+    // TODO move this method out of IDataset, it doesn't depend on the graph
+    virtual bool enableAlgsForBatch(int64_t i) const = 0;
+    virtual void reset() {};
+    virtual ~IDataset() = default;
+};
+
+class Dataset : public IDataset
 {
 private:
     void loadEdgesBinary(std::string path);
@@ -113,7 +129,7 @@ public:
     Dataset(Args args);
 
     int64_t getTimestampForWindow(int64_t batchId) const;
-    std::shared_ptr<Batch> getBatch(int64_t batchId) const;
+    std::shared_ptr<Batch> getBatch(int64_t batchId);
     int64_t getNumBatches() const;
     int64_t getNumEdges() const;
 
@@ -213,6 +229,9 @@ public:
     std::vector<int64_t>& get_data_for_alg(std::string alg_name);
 };
 
+std::shared_ptr<IDataset>
+create_dataset(const DynoGraph::Args &args);
+
 template<typename graph_t>
 void
 run(int argc, char **argv)
@@ -222,8 +241,8 @@ run(int argc, char **argv)
     // Process command line arguments
     DynoGraph::Args args = DynoGraph::Args::parse(argc, argv);
     // Load graph data in from the file in batches
-    DynoGraph::Dataset dataset(args);
-    int64_t max_vertex_id = dataset.getMaxVertexId();
+    std::shared_ptr<DynoGraph::IDataset> dataset = create_dataset(args);
+    int64_t max_vertex_id = dataset->getMaxVertexId();
     // Initialize a buffer of data for each algorithm
     DynoGraph::AlgDataManager alg_data_manager(max_vertex_id, args.alg_names);
     DynoGraph::Logger &logger = DynoGraph::Logger::get_instance();
@@ -239,7 +258,7 @@ run(int argc, char **argv)
         // Step through one batch at a time
         // Epoch will be incremented as necessary
         int64_t epoch = 0;
-        int64_t num_batches = dataset.getNumBatches();
+        int64_t num_batches = dataset->getNumBatches();
         for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id)
         {
             hooks.set_attr("batch", batch_id);
@@ -250,10 +269,10 @@ run(int argc, char **argv)
             {
                 // Batch preprocessing (preprocess)
                 hooks.region_begin("preprocess");
-                std::shared_ptr<DynoGraph::Batch> batch = dataset.getBatch(batch_id);
+                std::shared_ptr<DynoGraph::Batch> batch = dataset->getBatch(batch_id);
                 hooks.region_end();
 
-                int64_t threshold = dataset.getTimestampForWindow(batch_id);
+                int64_t threshold = dataset->getTimestampForWindow(batch_id);
                 graph.before_batch(*batch, threshold);
 
                 // Edge deletion benchmark (deletions)
@@ -278,7 +297,7 @@ run(int argc, char **argv)
             // In snapshot mode, we construct a new graph before each epoch
             } else if (args.sort_mode == SORT_MODE::SNAPSHOT) {
 
-                if (dataset.enableAlgsForBatch(batch_id))
+                if (dataset->enableAlgsForBatch(batch_id))
                 {
                     logger << "Reinitializing graph\n";
                     // graph = graph_t(dataset, args) is no good here,
@@ -292,7 +311,7 @@ run(int argc, char **argv)
 
                     // This batch will be a cumulative, filtered snapshot of all the edges in previous batches
                     hooks.region_begin("preprocess");
-                    std::shared_ptr<DynoGraph::Batch> batch = dataset.getBatch(batch_id);
+                    std::shared_ptr<DynoGraph::Batch> batch = dataset->getBatch(batch_id);
                     hooks.region_end();
 
                     // Graph construction benchmark (insertions)
@@ -304,7 +323,7 @@ run(int argc, char **argv)
             }
 
             // Graph algorithm benchmarks
-            if (dataset.enableAlgsForBatch(batch_id)) {
+            if (dataset->enableAlgsForBatch(batch_id)) {
 
                 for (int64_t alg_trial = 0; alg_trial < args.num_alg_trials; ++alg_trial)
                 {

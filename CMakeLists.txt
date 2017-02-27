@@ -4,7 +4,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 add_subdirectory(hooks)
 
 # Build the dynograph_util library
-add_library(dynograph_util dynograph_util.cc)
+add_library(dynograph_util
+        rmat_dataset.cc
+        dynograph_util.cc)
 # Enable parallel versions of functions from <algorithm> and <numeric>
 if (OPENMP_FOUND)
   target_compile_definitions(dynograph_util PUBLIC _GLIBCXX_PARALLEL)

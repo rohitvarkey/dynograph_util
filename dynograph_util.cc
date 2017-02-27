@@ -10,6 +10,8 @@
 
 #include "dynograph_util.h"
 
+#include "rmat_dataset.h"
+
 using namespace DynoGraph;
 using std::cerr;
 using std::string;
@@ -358,8 +360,7 @@ Dataset::Dataset(Args args)
     MPI_RANK_0_ONLY {
     Logger &logger = Logger::get_instance();
     // Load edges from the file
-    if (has_suffix(args.input_path, ".graph.bin"))
-    {
+    if (has_suffix(args.input_path, ".graph.bin")) {
         loadEdgesBinary(args.input_path);
     } else if (has_suffix(args.input_path, ".graph.el")) {
         loadEdgesAscii(args.input_path);
@@ -526,7 +527,7 @@ Dataset::enableAlgsForBatch(int64_t batch_id) const {
 }
 
 shared_ptr<Batch>
-Dataset::getBatch(int64_t batchId) const
+Dataset::getBatch(int64_t batchId)
 {
     int64_t threshold = getTimestampForWindow(batchId);
     MPI_RANK_0_ONLY {
@@ -688,6 +689,32 @@ AlgDataManager::dump(int64_t epoch) const
 std::vector<int64_t>&
 AlgDataManager::get_data_for_alg(std::string alg_name) {
     return current_epoch_data.at(alg_name);
+}
+
+shared_ptr<IDataset>
+DynoGraph::create_dataset(const Args &args)
+{
+    DynoGraph::Logger& logger = DynoGraph::Logger::get_instance();
+
+    if (has_suffix(args.input_path, ".rmat")) {
+        // The suffix ".rmat" means we interpret input_path as a list of params, not as a literal path
+        RmatArgs rmat_args(RmatArgs::from_string(args.input_path));
+        std::string msg = rmat_args.validate();
+        if (!msg.empty()) {
+            logger << msg;
+            die();
+        }
+        return make_shared<RmatDataset>(args, rmat_args);
+
+    } else if (has_suffix(args.input_path, ".graph.bin")
+               || has_suffix(args.input_path, ".graph.el"))
+    {
+        return make_shared<Dataset>(args);
+
+    } else {
+        logger << "Unrecognized file extension for " << args.input_path << "\n";
+        die();
+    }
 }
 
 void

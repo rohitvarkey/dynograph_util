@@ -24,20 +24,23 @@ public:
         args.sort_mode = Args::SORT_MODE::UNSORTED;
         args.alg_names = {};
 
-        for (int64_t batch_size : { 100, 500, 5000 }) {
-            args.batch_size = batch_size;
-            for (double window_size : { 0.1, 0.5, 1.0 }) {
-                args.window_size = window_size;
-                for (int64_t num_epochs : {3, 5, 7}) {
-                    args.num_epochs = num_epochs;
-                    all_args.push_back(args);
+        for (std::string input_path : { "data/worldcup-10K.graph.bin", "0.55-0.20-0.10-0.15-44500-8K.rmat" }) {
+            args.input_path = input_path;
+            for (int64_t batch_size : { 100, 500, 5000 }) {
+                args.batch_size = batch_size;
+                for (double window_size : { 0.1, 0.5, 1.0 }) {
+                    args.window_size = window_size;
+                    for (int64_t num_epochs : {3, 5, 7}) {
+                        args.num_epochs = num_epochs;
+                        all_args.push_back(args);
+                    }
                 }
             }
         }
     }
 protected:
-    const Dataset dataset;
-    DatasetTest() : dataset(GetParam()) {}
+    std::shared_ptr<IDataset> dataset;
+    DatasetTest() : dataset(create_dataset(GetParam())) {}
 };
 std::vector<Args> DatasetTest::all_args;
 
@@ -52,36 +55,12 @@ TEST_P(DatasetTest, LoadDatasetCorrectly) {
     const int64_t actual_num_edges = 44500;
 
     // Check that the right number of edges were loaded
-    EXPECT_EQ(dataset.getNumEdges(), actual_num_edges);
+    EXPECT_EQ(dataset->getNumEdges(), actual_num_edges);
     // Check that the dataset was partitioned into the right number of batches
-    EXPECT_EQ(dataset.getNumBatches(), actual_num_edges / args.batch_size);
+    EXPECT_EQ(dataset->getNumBatches(), actual_num_edges / args.batch_size);
     if (args.window_size == 1.0) {
-        for (int64_t i = 0; i < dataset.getNumBatches(); ++i) {
-            EXPECT_EQ(dataset.getBatch(i)->size(), args.batch_size);
-        }
-    }
-}
-
-TEST_P(DatasetTest, SetWindowThresholdCorrectly) {
-    const Args &args = GetParam();
-
-    double first_filtered_batch = args.window_size * dataset.getNumBatches();
-    const Edge& first_edge = *dataset.getBatch(0)->begin();
-    const Edge& last_edge = *(dataset.getBatch(dataset.getNumBatches()-1)->end()-1);
-    int64_t min_ts = first_edge.timestamp;
-    int64_t max_ts = last_edge.timestamp;
-    EXPECT_GE(max_ts, min_ts);
-
-    for (int64_t i = 0; i < dataset.getNumBatches(); ++i)
-    {
-        int64_t threshold = dataset.getTimestampForWindow(i);
-
-        if (i < first_filtered_batch)
-        {
-            EXPECT_EQ(threshold, min_ts);
-        } else {
-            EXPECT_GE(threshold, min_ts);
-            EXPECT_LE(threshold, max_ts);
+        for (int64_t i = 0; i < dataset->getNumBatches(); ++i) {
+            EXPECT_EQ(dataset->getBatch(i)->size(), args.batch_size);
         }
     }
 }
@@ -90,14 +69,14 @@ TEST_P(DatasetTest, DontSkipAnyEpochs) {
     const Args &args = GetParam();
 
     int64_t actual_num_epochs = 0;
-    for (int64_t i = 0; i < dataset.getNumBatches(); ++i)
+    for (int64_t i = 0; i < dataset->getNumBatches(); ++i)
     {
-        bool run_epoch = dataset.enableAlgsForBatch(i);
+        bool run_epoch = dataset->enableAlgsForBatch(i);
         if (run_epoch) {
             actual_num_epochs += 1;
         }
         // There should always be an epoch after the last batch
-        if (i == dataset.getNumBatches() - 1) {
+        if (i == dataset->getNumBatches() - 1) {
             EXPECT_EQ(run_epoch, true);
         }
     }
