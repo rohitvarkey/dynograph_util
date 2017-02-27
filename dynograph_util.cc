@@ -344,7 +344,7 @@ FilteredBatch::FilteredBatch(const Batch &batch, int64_t threshold)
         [threshold](const Edge& e) { return e.timestamp >= threshold; });
 }
 
-// Implementation of DynoGraph::Dataset
+// Implementation of DynoGraph::EdgeListDataset
 
 // Helper function to test a string for a given suffix
 // http://stackoverflow.com/questions/20446201
@@ -354,7 +354,7 @@ bool has_suffix(const std::string &str, const std::string &suffix)
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-Dataset::Dataset(Args args)
+EdgeListDataset::EdgeListDataset(Args args)
 : args(args), directed(true)
 {
     MPI_RANK_0_ONLY {
@@ -425,7 +425,7 @@ Dataset::Dataset(Args args)
 }
 
 void
-Dataset::loadEdgesBinary(string path)
+EdgeListDataset::loadEdgesBinary(string path)
 {
     Logger &logger = Logger::get_instance();
     logger << "Checking file size of " << path << "...\n";
@@ -455,7 +455,7 @@ Dataset::loadEdgesBinary(string path)
 }
 
 void
-Dataset::loadEdgesAscii(string path)
+EdgeListDataset::loadEdgesAscii(string path)
 {
     Logger &logger = Logger::get_instance();
     logger << "Counting lines in " << path << "...\n";
@@ -493,7 +493,7 @@ true_div(X x, Y y)
 }
 
 int64_t
-Dataset::getTimestampForWindow(int64_t batchId) const
+EdgeListDataset::getTimestampForWindow(int64_t batchId) const
 {
     int64_t timestamp;
     MPI_RANK_0_ONLY {
@@ -510,7 +510,7 @@ Dataset::getTimestampForWindow(int64_t batchId) const
 };
 
 bool
-Dataset::enableAlgsForBatch(int64_t batch_id) const {
+EdgeListDataset::enableAlgsForBatch(int64_t batch_id) const {
     bool enable;
     MPI_RANK_0_ONLY {
     // How many batches in each epoch, on average?
@@ -527,7 +527,7 @@ Dataset::enableAlgsForBatch(int64_t batch_id) const {
 }
 
 shared_ptr<Batch>
-Dataset::getBatch(int64_t batchId)
+EdgeListDataset::getBatch(int64_t batchId)
 {
     int64_t threshold = getTimestampForWindow(batchId);
     MPI_RANK_0_ONLY {
@@ -555,7 +555,7 @@ Dataset::getBatch(int64_t batchId)
 }
 
 bool
-Dataset::isDirected() const
+EdgeListDataset::isDirected() const
 {
     bool retval;
     MPI_RANK_0_ONLY { retval = directed; }
@@ -564,7 +564,7 @@ Dataset::isDirected() const
 }
 
 int64_t
-Dataset::getMaxVertexId() const
+EdgeListDataset::getMaxVertexId() const
 {
     int64_t retval = max_vertex_id;
     MPI_RANK_0_ONLY { retval = max_vertex_id; }
@@ -572,14 +572,14 @@ Dataset::getMaxVertexId() const
     return retval;
 }
 
-int64_t Dataset::getNumBatches() const {
+int64_t EdgeListDataset::getNumBatches() const {
     int64_t retval;
     MPI_RANK_0_ONLY { retval = static_cast<int64_t>(batches.size()); }
     MPI_BROADCAST_RESULT(retval);
     return retval;
 };
 
-int64_t Dataset::getNumEdges() const {
+int64_t EdgeListDataset::getNumEdges() const {
     int64_t retval;
     MPI_RANK_0_ONLY { retval = static_cast<int64_t>(edges.size()); }
     MPI_BROADCAST_RESULT(retval);
@@ -709,7 +709,7 @@ DynoGraph::create_dataset(const Args &args)
     } else if (has_suffix(args.input_path, ".graph.bin")
                || has_suffix(args.input_path, ".graph.el"))
     {
-        return make_shared<Dataset>(args);
+        return make_shared<EdgeListDataset>(args);
 
     } else {
         logger << "Unrecognized file extension for " << args.input_path << "\n";

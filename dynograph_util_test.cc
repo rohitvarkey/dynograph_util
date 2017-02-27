@@ -119,15 +119,15 @@ TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
 
     // Load the same graph in three different sort modes
     args.sort_mode = DynoGraph::Args::SORT_MODE::UNSORTED;
-    DynoGraph::Dataset unsorted_dataset(args);
+    DynoGraph::EdgeListDataset unsorted_dataset(args);
     reference_impl unsorted_graph(args, unsorted_dataset.getMaxVertexId());
 
     args.sort_mode = DynoGraph::Args::SORT_MODE::PRESORT;
-    DynoGraph::Dataset presort_dataset(args);
+    DynoGraph::EdgeListDataset presort_dataset(args);
     reference_impl presort_graph(args, presort_dataset.getMaxVertexId());
 
     args.sort_mode = DynoGraph::Args::SORT_MODE::SNAPSHOT;
-    DynoGraph::Dataset snapshot_dataset(args);
+    DynoGraph::EdgeListDataset snapshot_dataset(args);
     reference_impl snapshot_graph(args, snapshot_dataset.getMaxVertexId());
 
     auto values_match = [](int64_t a, int64_t b, int64_t c) { return a == b && b == c; };

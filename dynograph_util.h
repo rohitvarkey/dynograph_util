@@ -110,7 +110,7 @@ public:
     virtual ~IDataset() = default;
 };
 
-class Dataset : public IDataset
+class EdgeListDataset : public IDataset
 {
 private:
     void loadEdgesBinary(std::string path);
@@ -126,7 +126,7 @@ private:
     std::vector<Batch> batches;
 
 public:
-    Dataset(Args args);
+    EdgeListDataset(Args args);
 
     int64_t getTimestampForWindow(int64_t batchId) const;
     std::shared_ptr<Batch> getBatch(int64_t batchId);

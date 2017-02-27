@@ -227,7 +227,7 @@ template <typename graph_t>
 class CompareWithReferenceTest : public ::testing::Test {
 protected:
     Args args;
-    Dataset dataset;
+    EdgeListDataset dataset;
 private:
     graph_t test_graph;
     reference_impl ref_graph;
