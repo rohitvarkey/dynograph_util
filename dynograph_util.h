@@ -12,44 +12,11 @@
 #include <assert.h>
 
 #include "mpi_macros.h"
+#include "alg_data_manager.h"
+#include "logger.h"
+#include "args.h"
 
 namespace DynoGraph {
-
-struct Args
-{
-    // Number of epochs in the benchmark
-    int64_t num_epochs;
-    // File path for edge list to load
-    std::string input_path;
-    // Number of edges to insert in each batch of insertions
-    int64_t batch_size;
-    // Algorithms to run after each epoch
-    std::vector<std::string> alg_names;
-    // Batch sort mode:
-    enum class SORT_MODE {
-        // Do not pre-sort batches
-        UNSORTED,
-        // Sort and deduplicate each batch before returning it
-        PRESORT,
-        // Each batch is a cumulative snapshot of all edges in previous batches
-        SNAPSHOT
-    } sort_mode;
-    // Percentage of the graph to hold in memory
-    double window_size;
-    // Number of times to repeat the benchmark
-    int64_t num_trials;
-    // Number of times to repeat each epoch
-    int64_t num_alg_trials;
-
-    Args() = default;
-    std::string validate() const;
-
-    static Args parse(int argc, char **argv);
-    static void print_help(std::string argv0);
-};
-
-std::ostream& operator <<(std::ostream& os, Args::SORT_MODE sort_mode);
-std::ostream& operator <<(std::ostream& os, const Args& args);
 
 struct Edge
 {
@@ -59,40 +26,50 @@ struct Edge
     int64_t timestamp;
 };
 
-bool operator<(const Edge& a, const Edge& b);
-bool operator==(const Edge& a, const Edge& b);
-std::ostream& operator <<(std::ostream& os, const Edge& e);
+inline bool
+operator<(const Edge& a, const Edge& b)
+{
+    // Custom sorting order to prepare for deduplication
+    // Order by src ascending, then dest ascending, then timestamp descending
+    // This way the edge with the most recent timestamp will be picked when deduplicating
+    return (a.src != b.src) ? a.src < b.src
+         : (a.dst != b.dst) ? a.dst < b.dst
+         : a.timestamp > b.timestamp;
+}
 
+inline bool
+operator==(const Edge& a, const Edge& b)
+{
+    return a.src == b.src
+        && a.dst == b.dst
+        && a.weight == b.weight
+        && a.timestamp == b.timestamp;
+}
+
+inline std::ostream&
+operator<<(std::ostream &os, const Edge &e) {
+    os << e.src << " " << e.dst << " " << e.weight << " " << e.timestamp;
+    return os;
+}
 
 class Batch
 {
 public:
     typedef std::vector<Edge>::const_iterator iterator;
-    iterator begin() const;
-    iterator end() const;
-    Batch(iterator begin, iterator end);
+    iterator begin() const { return begin_iter; }
+    iterator end() const { return end_iter; }
+    Batch(iterator begin, iterator end)
+    : begin_iter(begin), end_iter(end) {}
     virtual int64_t num_vertices_affected() const;
-    const Edge& operator[] (size_t i) const;
-    size_t size() const;
-    bool is_directed() const;
+    const Edge& operator[] (size_t i) const {
+        assert(begin_iter + i < end_iter);
+        return *(begin_iter + i);
+    }
+    size_t size() const { return end_iter - begin_iter; }
+    bool is_directed() const { return true; }
     virtual ~Batch() = default;
 protected:
     iterator begin_iter, end_iter;
-};
-
-class FilteredBatch : public Batch
-{
-public:
-    explicit FilteredBatch(const Batch& batch, int64_t threshold);
-};
-
-class DeduplicatedBatch : public Batch
-{
-protected:
-    std::vector<Edge> deduped_edges;
-public:
-    explicit DeduplicatedBatch(const Batch& batch);
-    virtual int64_t num_vertices_affected() const;
 };
 
 class IDataset
@@ -100,6 +77,7 @@ class IDataset
 public:
     virtual int64_t getTimestampForWindow(int64_t batchId) const = 0;
     virtual std::shared_ptr<Batch> getBatch(int64_t batchId) = 0;
+    virtual std::shared_ptr<Batch> getBatchesUpTo(int64_t batchId) = 0;
     virtual int64_t getNumBatches() const = 0;
     virtual int64_t getNumEdges() const = 0;
     virtual bool isDirected() const = 0;
@@ -110,41 +88,12 @@ public:
     virtual ~IDataset() = default;
 };
 
-class EdgeListDataset : public IDataset
-{
-private:
-    void loadEdgesBinary(std::string path);
-    void loadEdgesAscii(std::string path);
-
-    Args args;
-    bool directed;
-    int64_t max_vertex_id;
-    int64_t min_timestamp;
-    int64_t max_timestamp;
-
-    std::vector<Edge> edges;
-    std::vector<Batch> batches;
-
-public:
-    EdgeListDataset(Args args);
-
-    int64_t getTimestampForWindow(int64_t batchId) const;
-    std::shared_ptr<Batch> getBatch(int64_t batchId);
-    int64_t getNumBatches() const;
-    int64_t getNumEdges() const;
-
-    bool isDirected() const;
-    int64_t getMaxVertexId() const;
-
-    bool enableAlgsForBatch(int64_t i) const;
-};
-
 class DynamicGraph
 {
 public:
     const Args args;
     // Initialize the graph - your constructor must match this signature
-    DynamicGraph(Args args, int64_t max_vertex_id);
+    DynamicGraph(Args args, int64_t max_vertex_id) : args(args) {}
     // Return list of supported algs - your class must implement this method
     static std::vector<std::string> get_supported_algs();
     // Prepare to insert the batch
@@ -178,8 +127,9 @@ struct vertex_degree
 {
     int64_t vertex_id;
     int64_t out_degree;
-    vertex_degree();
-    vertex_degree(int64_t vertex_id, int64_t out_degree);
+    vertex_degree() {}
+    vertex_degree(int64_t vertex_id, int64_t out_degree)
+    : vertex_id(vertex_id), out_degree(out_degree) {}
 };
 inline bool
 operator < (const vertex_degree &a, const vertex_degree &b) {
@@ -187,50 +137,11 @@ operator < (const vertex_degree &a, const vertex_degree &b) {
     return a.vertex_id > b.vertex_id;
 }
 
-class Logger
-{
-protected:
-    const std::string msg = "[DynoGraph] ";
-    std::ostream &out;
-    std::ostringstream oss;
-    Logger (std::ostream &out);
-public:
-    // Print to error stream with prefix
-    template <class T>
-    Logger& operator<<(T&& x) {
-        MPI_RANK_0_ONLY {
-        oss << std::forward<T>(x);
-        // Once we have a full line, print with prefix
-        if (oss.str().back() == '\n') {
-            out << msg << oss.str();
-            oss.str("");
-        }
-        }
-        return *this;
-    }
-    // Handle IO manipulators
-    Logger& operator<<(std::ostream& (*manip)(std::ostream&));
-    // Singleton getter
-    static Logger& get_instance();
-    virtual ~Logger();
-};
-
-class AlgDataManager
-{
-private:
-    std::map<std::string, std::vector<int64_t>> last_epoch_data;
-    std::map<std::string, std::vector<int64_t>> current_epoch_data;
-    std::string path;
-public:
-    AlgDataManager(int64_t nv, std::vector<std::string> alg_names);
-    void next_epoch();
-    void rollback();
-    void dump(int64_t epoch) const;
-    std::vector<int64_t>& get_data_for_alg(std::string alg_name);
-};
-
 std::shared_ptr<IDataset>
-create_dataset(const DynoGraph::Args &args);
+create_dataset(const Args &args);
+
+std::shared_ptr<Batch>
+get_preprocessed_batch(int64_t batchId, IDataset &dataset, Args::SORT_MODE sort_mode);
 
 template<typename graph_t>
 void
@@ -269,7 +180,7 @@ run(int argc, char **argv)
             {
                 // Batch preprocessing (preprocess)
                 hooks.region_begin("preprocess");
-                std::shared_ptr<DynoGraph::Batch> batch = dataset->getBatch(batch_id);
+                std::shared_ptr<DynoGraph::Batch> batch = get_preprocessed_batch(batch_id, *dataset, args.sort_mode);
                 hooks.region_end();
 
                 int64_t threshold = dataset->getTimestampForWindow(batch_id);
@@ -311,7 +222,7 @@ run(int argc, char **argv)
 
                     // This batch will be a cumulative, filtered snapshot of all the edges in previous batches
                     hooks.region_begin("preprocess");
-                    std::shared_ptr<DynoGraph::Batch> batch = dataset->getBatch(batch_id);
+                    std::shared_ptr<DynoGraph::Batch> batch = get_preprocessed_batch(batch_id, *dataset, args.sort_mode);
                     hooks.region_end();
 
                     // Graph construction benchmark (insertions)

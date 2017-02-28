@@ -1,9 +1,4 @@
-//
-// Created by ehein6 on 2/27/17.
-//
-
-#ifndef STINGER_DYNOGRAPH_RMAT_DATASET_H
-#define STINGER_DYNOGRAPH_RMAT_DATASET_H
+#pragma once
 
 #include "dynograph_util.h"
 #include "rmat.h"
@@ -25,6 +20,7 @@ protected:
     std::vector<Edge> edges;
 public:
     explicit RmatBatch(rmat_edge_generator& generator, int64_t size, int64_t first_timestamp);
+    explicit RmatBatch();
 };
 
 class RmatDataset : public IDataset {
@@ -42,6 +38,7 @@ public:
 
     int64_t getTimestampForWindow(int64_t batchId) const;
     std::shared_ptr<Batch> getBatch(int64_t batchId);
+    std::shared_ptr<Batch> getBatchesUpTo(int64_t batchId);
     int64_t getNumBatches() const;
     int64_t getNumEdges() const;
 
@@ -53,5 +50,3 @@ public:
 };
 
 } // end namespace DynoGraph
-
-#endif //STINGER_DYNOGRAPH_RMAT_DATASET_H

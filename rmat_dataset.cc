@@ -3,6 +3,7 @@
 //
 
 #include "rmat_dataset.h"
+#include "helpers.h"
 
 using namespace DynoGraph;
 
@@ -88,21 +89,6 @@ RmatDataset::RmatDataset(Args args, RmatArgs rmat_args)
     } // end MPI_RANK_0_ONLY
 }
 
-// Round down to nearest integer
-static int64_t
-round_down(double x)
-{
-    return static_cast<int64_t>(std::floor(x));
-}
-
-// Divide two integers with double result
-template <typename X, typename Y>
-static double
-true_div(X x, Y y)
-{
-    return static_cast<double>(x) / static_cast<double>(y);
-}
-
 int64_t
 RmatDataset::getTimestampForWindow(int64_t batchId) const
 {
@@ -143,13 +129,28 @@ RmatDataset::getBatch(int64_t batchId)
     // Since this is a graph generator, batches must be generated in order
     assert(batchId == current_batch);
     current_batch += 1;
-    // FIXME threshold not being applied
-    int64_t threshold = getTimestampForWindow(batchId);
+
     MPI_RANK_0_ONLY {
     int64_t first_timestamp = next_timestamp;
     next_timestamp += args.batch_size;
     return std::make_shared<RmatBatch>(generator, args.batch_size, first_timestamp);
     }
+    return std::make_shared<RmatBatch>();
+}
+
+std::shared_ptr<Batch>
+RmatDataset::getBatchesUpTo(int64_t batchId)
+{
+    // Since this is a graph generator, batches must be generated in order
+    assert(batchId == 0);
+    current_batch = batchId + 1;
+
+    MPI_RANK_0_ONLY {
+    int64_t first_timestamp = next_timestamp;
+    next_timestamp += args.batch_size;
+    return std::make_shared<RmatBatch>(generator, args.batch_size, first_timestamp);
+    }
+    return std::make_shared<RmatBatch>();
 }
 
 bool
@@ -200,9 +201,14 @@ RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first
         Edge& e = edges[i];
         do { generator.next_edge(&e.src, &e.dst); }
         while (e.src == e.dst); // Discard self-edges
-        e.weight = 1;    // FIXME generate random weights
+        e.weight = 1;
         e.timestamp = first_timestamp++;
     }
     begin_iter = edges.begin();
     end_iter = edges.end();
 }
+
+// Empty batch
+RmatBatch::RmatBatch()
+: Batch(edges.begin(), edges.end()) {}
+

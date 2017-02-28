@@ -3,6 +3,7 @@
 
 #include "dynograph_util.h"
 #include "reference_impl.h"
+#include "edgelist_dataset.h"
 #include <gtest/gtest.h>
 
 using namespace DynoGraph;
@@ -116,6 +117,9 @@ std::vector<Args> SortModeTest::all_args;
 TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
 {
     DynoGraph::Args args = GetParam();
+
+    // TODO fix this test
+    // Consider making
 
     // Load the same graph in three different sort modes
     args.sort_mode = DynoGraph::Args::SORT_MODE::UNSORTED;

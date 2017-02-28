@@ -5,8 +5,12 @@ add_subdirectory(hooks)
 
 # Build the dynograph_util library
 add_library(dynograph_util
-        rmat_dataset.cc
-        dynograph_util.cc)
+    args.cc
+    alg_data_manager.cc
+    edgelist_dataset.cc
+    rmat_dataset.cc
+    dynograph_util.cc
+)
 # Enable parallel versions of functions from <algorithm> and <numeric>
 if (OPENMP_FOUND)
   target_compile_definitions(dynograph_util PUBLIC _GLIBCXX_PARALLEL)

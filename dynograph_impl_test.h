@@ -3,6 +3,7 @@
 // Provides a test template for implementations of DynoGraph::DynamicGraph
 
 #include <dynograph_util.h>
+#include <edgelist_dataset.h>
 #include <gtest/gtest.h>
 #include <reference_impl.h>
 
