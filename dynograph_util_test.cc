@@ -79,7 +79,7 @@ TEST_P(DatasetTest, DontSkipAnyEpochs) {
             actual_num_epochs += 1;
         }
         // There should always be an epoch after the last batch
-        if (i == dataset->getNumBatches() - 1) {
+        if (i == num_batches - 1) {
             EXPECT_EQ(run_epoch, true);
         }
     }
@@ -119,32 +119,29 @@ std::vector<Args> SortModeTest::all_args;
 TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
 {
     DynoGraph::Args args = GetParam();
-
-    // TODO fix this test
-    // Consider making
+    typedef DynoGraph::Args::SORT_MODE SORT_MODE;
+    DynoGraph::EdgeListDataset dataset(args);
+    int64_t max_vertex_id = dataset.getMaxVertexId();
 
     // Load the same graph in three different sort modes
-    args.sort_mode = DynoGraph::Args::SORT_MODE::UNSORTED;
-    DynoGraph::EdgeListDataset unsorted_dataset(args);
-    reference_impl unsorted_graph(args, unsorted_dataset.getMaxVertexId());
+    args.sort_mode = SORT_MODE::UNSORTED;
+    reference_impl unsorted_graph(args, max_vertex_id);
 
-    args.sort_mode = DynoGraph::Args::SORT_MODE::PRESORT;
-    DynoGraph::EdgeListDataset presort_dataset(args);
-    reference_impl presort_graph(args, presort_dataset.getMaxVertexId());
+    args.sort_mode = SORT_MODE::PRESORT;
+    reference_impl presort_graph(args, max_vertex_id);
 
-    args.sort_mode = DynoGraph::Args::SORT_MODE::SNAPSHOT;
-    DynoGraph::EdgeListDataset snapshot_dataset(args);
-    reference_impl snapshot_graph(args, snapshot_dataset.getMaxVertexId());
+    args.sort_mode = SORT_MODE::SNAPSHOT;
+    reference_impl snapshot_graph(args, max_vertex_id);
 
     auto values_match = [](int64_t a, int64_t b, int64_t c) { return a == b && b == c; };
 
     // Make sure the resulting graphs are the same in each batch, regardless of sort mode
-    for (int64_t batch = 0; batch < unsorted_dataset.getNumBatches(); ++batch)
+    for (int64_t batch = 0; batch < dataset.getNumBatches(); ++batch)
     {
         // Do deletions and check the graphs against each other
         //    snapshot_graph is omitted from this comparison, because we don't do deletions in snapshot mode
-        int64_t unsorted_threshold = unsorted_dataset.getTimestampForWindow(batch);
-        int64_t presort_threshold = presort_dataset.getTimestampForWindow(batch);
+        int64_t unsorted_threshold = dataset.getTimestampForWindow(batch);
+        int64_t presort_threshold = dataset.getTimestampForWindow(batch);
 
         ASSERT_EQ(unsorted_threshold, presort_threshold);
 
@@ -160,9 +157,9 @@ TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
         }
 
         // Do insertions and check all three graphs against each other
-        unsorted_graph.insert_batch(*unsorted_dataset.getBatch(batch));
-        presort_graph.insert_batch(*presort_dataset.getBatch(batch));
-        snapshot_graph.insert_batch(*snapshot_dataset.getBatch(batch));
+        unsorted_graph.insert_batch(*get_preprocessed_batch(batch, dataset, SORT_MODE::UNSORTED));
+        presort_graph.insert_batch(*get_preprocessed_batch(batch, dataset, SORT_MODE::PRESORT));
+        snapshot_graph.insert_batch(*get_preprocessed_batch(batch, dataset, SORT_MODE::SNAPSHOT));
 
         ASSERT_PRED3(values_match,
             unsorted_graph.get_num_edges(),
@@ -186,7 +183,7 @@ TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
 
         // Clear out snapshot graph before next batch
         snapshot_graph.~reference_impl();
-        new(&snapshot_graph) reference_impl(args, snapshot_dataset.getMaxVertexId());
+        new(&snapshot_graph) reference_impl(args, max_vertex_id);
     }
 }
 
