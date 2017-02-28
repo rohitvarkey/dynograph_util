@@ -117,7 +117,7 @@ RmatDataset::getBatchesUpTo(int64_t batchId)
 
     int64_t first_timestamp = next_timestamp;
     next_timestamp += args.batch_size;
-    return std::make_shared<RmatBatch>(generator, args.batch_size, first_timestamp);
+    return std::make_shared<RmatBatch>(generator, current_batch * args.batch_size, first_timestamp);
 }
 
 bool
