@@ -112,7 +112,7 @@ std::shared_ptr<Batch>
 RmatDataset::getBatchesUpTo(int64_t batchId)
 {
     // Since this is a graph generator, batches must be generated in order
-    assert(batchId == 0);
+    reset();
     current_batch = batchId + 1;
 
     int64_t first_timestamp = next_timestamp;

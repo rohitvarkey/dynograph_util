@@ -278,6 +278,8 @@ run(int argc, char **argv)
             }
         }
         assert(epoch == args.num_epochs);
+        // Reset dataset for next trial
+        dataset->reset();
     }
 }
 
