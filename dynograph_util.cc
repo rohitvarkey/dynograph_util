@@ -95,25 +95,33 @@ DynoGraph::create_dataset(const Args &args)
 {
     DynoGraph::Logger& logger = DynoGraph::Logger::get_instance();
 
-    if (has_suffix(args.input_path, ".rmat")) {
-        // The suffix ".rmat" means we interpret input_path as a list of params, not as a literal path
-        RmatArgs rmat_args(RmatArgs::from_string(args.input_path));
-        std::string msg = rmat_args.validate();
-        if (!msg.empty()) {
-            logger << msg;
+    shared_ptr<IDataset> dataset(nullptr);
+    MPI_RANK_0_ONLY {
+        if (has_suffix(args.input_path, ".rmat")) {
+            // The suffix ".rmat" means we interpret input_path as a list of params, not as a literal path
+            RmatArgs rmat_args(RmatArgs::from_string(args.input_path));
+            std::string msg = rmat_args.validate();
+            if (!msg.empty()) {
+                logger << msg;
+                die();
+            }
+            dataset = make_shared<RmatDataset>(args, rmat_args);
+
+        } else if (has_suffix(args.input_path, ".graph.bin")
+                   || has_suffix(args.input_path, ".graph.el"))
+        {
+            dataset = make_shared<EdgeListDataset>(args);
+
+        } else {
+            logger << "Unrecognized file extension for " << args.input_path << "\n";
             die();
         }
-        return make_shared<RmatDataset>(args, rmat_args);
-
-    } else if (has_suffix(args.input_path, ".graph.bin")
-               || has_suffix(args.input_path, ".graph.el"))
-    {
-        return make_shared<EdgeListDataset>(args);
-
-    } else {
-        logger << "Unrecognized file extension for " << args.input_path << "\n";
-        die();
     }
+    MPI_BARRIER();
+#ifdef USE_MPI
+    dataset = make_shared<ProxyDataset>(dataset);
+#endif
+    return dataset;
 }
 
 shared_ptr<Batch>

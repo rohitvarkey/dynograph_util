@@ -3,12 +3,12 @@
 //
 
 #include "edgelist_dataset.h"
-#include "mpi_macros.h"
 #include "helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <algorithm>
 
 using namespace DynoGraph;
 using std::shared_ptr;
@@ -17,71 +17,69 @@ using std::make_shared;
 EdgeListDataset::EdgeListDataset(Args args)
         : args(args), directed(true)
 {
-    MPI_RANK_0_ONLY {
-        Logger &logger = Logger::get_instance();
-        // Load edges from the file
-        if (has_suffix(args.input_path, ".graph.bin")) {
-            loadEdgesBinary(args.input_path);
-        } else if (has_suffix(args.input_path, ".graph.el")) {
-            loadEdgesAscii(args.input_path);
-        } else {
-            logger << "Unrecognized file extension for " << args.input_path << "\n";
-            die();
-        }
 
-        // Intentionally rounding down to make it divide evenly
-        int64_t num_batches = edges.size() / args.batch_size;
+    Logger &logger = Logger::get_instance();
+    // Load edges from the file
+    if (has_suffix(args.input_path, ".graph.bin")) {
+        loadEdgesBinary(args.input_path);
+    } else if (has_suffix(args.input_path, ".graph.el")) {
+        loadEdgesAscii(args.input_path);
+    } else {
+        logger << "Unrecognized file extension for " << args.input_path << "\n";
+        die();
+    }
 
-        // Sanity check on arguments
-        if (static_cast<size_t>(args.batch_size) > edges.size())
-        {
-            logger << "Invalid arguments: batch size (" << args.batch_size << ") "
-                   << "cannot be larger than the total number of edges in the dataset "
-                   << " (" << edges.size() << ")\n";
-            die();
-        }
+    // Intentionally rounding down to make it divide evenly
+    int64_t num_batches = edges.size() / args.batch_size;
 
-        if (args.num_epochs > num_batches)
-        {
-            logger << "Invalid arguments: number of epochs (" << args.num_epochs << ") "
-                   << "cannot be greater than the number of batches in the dataset "
-                   << "(" << num_batches << ")\n";
-            die();
-        }
+    // Sanity check on arguments
+    if (static_cast<size_t>(args.batch_size) > edges.size())
+    {
+        logger << "Invalid arguments: batch size (" << args.batch_size << ") "
+               << "cannot be larger than the total number of edges in the dataset "
+               << " (" << edges.size() << ")\n";
+        die();
+    }
 
-        // Calculate max vertex id so engines can statically provision the vertex array
-        auto max_edge = std::max_element(edges.begin(), edges.end(),
-                [](const Edge& a, const Edge& b) { return std::max(a.src, a.dst) < std::max(b.src, b.dst); });
-        max_vertex_id = std::max(max_edge->src, max_edge->dst);
+    if (args.num_epochs > num_batches)
+    {
+        logger << "Invalid arguments: number of epochs (" << args.num_epochs << ") "
+               << "cannot be greater than the number of batches in the dataset "
+               << "(" << num_batches << ")\n";
+        die();
+    }
 
-        // Make sure edges are sorted by timestamp, and save min/max timestamp
-        if (!std::is_sorted(edges.begin(), edges.end(),
-                [](const Edge& a, const Edge& b) { return a.timestamp < b.timestamp; }))
-        {
-            logger << "Invalid dataset: edges not sorted by timestamp\n";
-            die();
-        }
+    // Calculate max vertex id so engines can statically provision the vertex array
+    auto max_edge = std::max_element(edges.begin(), edges.end(),
+            [](const Edge& a, const Edge& b) { return std::max(a.src, a.dst) < std::max(b.src, b.dst); });
+    max_vertex_id = std::max(max_edge->src, max_edge->dst);
 
-        min_timestamp = edges.front().timestamp;
-        max_timestamp = edges.back().timestamp;
+    // Make sure edges are sorted by timestamp, and save min/max timestamp
+    if (!std::is_sorted(edges.begin(), edges.end(),
+            [](const Edge& a, const Edge& b) { return a.timestamp < b.timestamp; }))
+    {
+        logger << "Invalid dataset: edges not sorted by timestamp\n";
+        die();
+    }
 
-        // Make sure there are no self-edges
-        auto self_edge = std::find_if(edges.begin(), edges.end(),
-                [](const Edge& e) { return e.src == e.dst; });
-        if (self_edge != edges.end()) {
-            logger << "Invalid dataset: no self-edges allowed\n";
-            die();
-        }
+    min_timestamp = edges.front().timestamp;
+    max_timestamp = edges.back().timestamp;
 
-        for (int i = 0; i < num_batches; ++i)
-        {
-            size_t offset = i * args.batch_size;
-            auto begin = edges.begin() + offset;
-            auto end = edges.begin() + offset + args.batch_size;
-            batches.push_back(Batch(begin, end));
-        }
+    // Make sure there are no self-edges
+    auto self_edge = std::find_if(edges.begin(), edges.end(),
+            [](const Edge& e) { return e.src == e.dst; });
+    if (self_edge != edges.end()) {
+        logger << "Invalid dataset: no self-edges allowed\n";
+        die();
+    }
 
-    } // end MPI_RANK_0_ONLY
+    for (int i = 0; i < num_batches; ++i)
+    {
+        size_t offset = i * args.batch_size;
+        auto begin = edges.begin() + offset;
+        auto end = edges.begin() + offset + args.batch_size;
+        batches.push_back(Batch(begin, end));
+    }
 }
 
 // Count the number of lines in a text file
@@ -165,16 +163,14 @@ int64_t
 EdgeListDataset::getTimestampForWindow(int64_t batchId) const
 {
     int64_t timestamp;
-    MPI_RANK_0_ONLY {
+
     // Calculate width of timestamp window
     int64_t window_time = round_down(args.window_size * (max_timestamp - min_timestamp));
     // Get the timestamp of the last edge in the current batch
     int64_t latest_time = (batches[batchId].end()-1)->timestamp;
 
     timestamp = std::max(min_timestamp, latest_time - window_time);
-    }
 
-    MPI_BROADCAST_RESULT(timestamp);
     return timestamp;
 };
 
@@ -198,51 +194,43 @@ EdgeListDataset::enableAlgsForBatch(int64_t batch_id) const {
 shared_ptr<Batch>
 EdgeListDataset::getBatch(int64_t batchId)
 {
-    MPI_RANK_0_ONLY {
     return make_shared<Batch>(batches[batchId]);
-    }
-    // For MPI, ranks other than zero get an empty batch
-    return make_shared<Batch>(edges.end(), edges.end());
 }
 
 shared_ptr<Batch>
 EdgeListDataset::getBatchesUpTo(int64_t batchId)
 {
-    MPI_RANK_0_ONLY {
     return make_shared<Batch>(edges.begin(), batches[batchId].end());
-    }
-    // For MPI, ranks other than zero get an empty batch
-    return make_shared<Batch>(edges.end(), edges.end());
 }
 
 bool
 EdgeListDataset::isDirected() const
 {
-    bool retval;
-    MPI_RANK_0_ONLY { retval = directed; }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
+    return directed;
 }
 
 int64_t
 EdgeListDataset::getMaxVertexId() const
 {
-    int64_t retval = max_vertex_id;
-    MPI_RANK_0_ONLY { retval = max_vertex_id; }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
+    return max_vertex_id;
 }
 
-int64_t EdgeListDataset::getNumBatches() const {
-    int64_t retval;
-    MPI_RANK_0_ONLY { retval = static_cast<int64_t>(batches.size()); }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
+int64_t
+EdgeListDataset::getNumBatches() const {
+    return static_cast<int64_t>(batches.size());
 };
 
-int64_t EdgeListDataset::getNumEdges() const {
-    int64_t retval;
-    MPI_RANK_0_ONLY { retval = static_cast<int64_t>(edges.size()); }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
-};
+int64_t
+EdgeListDataset::getNumEdges() const {
+    return static_cast<int64_t>(edges.size());
+}
+
+int64_t
+EdgeListDataset::getMinTimestamp() const {
+    return min_timestamp;
+}
+
+int64_t
+EdgeListDataset::getMaxTimestamp() const {
+    return max_timestamp;
+}

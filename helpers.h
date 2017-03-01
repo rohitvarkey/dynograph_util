@@ -3,6 +3,7 @@
 #include <vector>
 #include <sstream>
 #include <string>
+#include <cmath>
 
 namespace { // anonymous namespace keeps these local
 

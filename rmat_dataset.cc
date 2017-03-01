@@ -1,7 +1,3 @@
-//
-// Created by ehein6 on 2/27/17.
-//
-
 #include "rmat_dataset.h"
 #include "helpers.h"
 
@@ -66,7 +62,6 @@ RmatDataset::RmatDataset(Args args, RmatArgs rmat_args)
 , next_timestamp(0)
 , generator(rmat_args.num_vertices, rmat_args.a, rmat_args.b, rmat_args.c, rmat_args.d)
 {
-    MPI_RANK_0_ONLY {
     Logger &logger = Logger::get_instance();
 
     // Sanity check on arguments
@@ -85,24 +80,19 @@ RmatDataset::RmatDataset(Args args, RmatArgs rmat_args)
                << "(" << num_batches << ")\n";
         die();
     }
-
-    } // end MPI_RANK_0_ONLY
 }
 
 int64_t
 RmatDataset::getTimestampForWindow(int64_t batchId) const
 {
     int64_t timestamp;
-    MPI_RANK_0_ONLY {
     // Calculate width of timestamp window
     int64_t window_time = num_edges * args.window_size;
     // Get the timestamp of the last edge in the current batch
     int64_t latest_time = (batchId+1)*args.batch_size;
 
     timestamp = std::max((int64_t)0, latest_time - window_time);
-    }
 
-    MPI_BROADCAST_RESULT(timestamp);
     return timestamp;
 };
 
@@ -130,12 +120,9 @@ RmatDataset::getBatch(int64_t batchId)
     assert(batchId == current_batch);
     current_batch += 1;
 
-    MPI_RANK_0_ONLY {
     int64_t first_timestamp = next_timestamp;
     next_timestamp += args.batch_size;
     return std::make_shared<RmatBatch>(generator, args.batch_size, first_timestamp);
-    }
-    return std::make_shared<RmatBatch>();
 }
 
 std::shared_ptr<Batch>
@@ -145,45 +132,42 @@ RmatDataset::getBatchesUpTo(int64_t batchId)
     assert(batchId == 0);
     current_batch = batchId + 1;
 
-    MPI_RANK_0_ONLY {
     int64_t first_timestamp = next_timestamp;
     next_timestamp += args.batch_size;
     return std::make_shared<RmatBatch>(generator, args.batch_size, first_timestamp);
-    }
-    return std::make_shared<RmatBatch>();
 }
 
 bool
 RmatDataset::isDirected() const
 {
-    bool retval;
-    MPI_RANK_0_ONLY { retval = true; }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
+    return true;
 }
 
 int64_t
 RmatDataset::getMaxVertexId() const
 {
-    int64_t retval;
-    MPI_RANK_0_ONLY { retval = num_vertices + 1; }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
+    return num_vertices + 1;
 }
 
-int64_t RmatDataset::getNumBatches() const {
-    int64_t retval;
-    MPI_RANK_0_ONLY { retval = static_cast<int64_t>(num_batches); }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
+int64_t
+RmatDataset::getNumBatches() const {
+    return num_batches;
+}
+
+int64_t
+RmatDataset::getNumEdges() const {
+    return num_edges;
 };
 
-int64_t RmatDataset::getNumEdges() const {
-    int64_t retval;
-    MPI_RANK_0_ONLY { retval = static_cast<int64_t>(num_edges); }
-    MPI_BROADCAST_RESULT(retval);
-    return retval;
-};
+int64_t
+RmatDataset::getMinTimestamp() const {
+    return 0;
+}
+
+int64_t
+RmatDataset::getMaxTimestamp() const {
+    return num_edges;
+}
 
 void
 RmatDataset::reset() {
@@ -207,8 +191,3 @@ RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first
     begin_iter = edges.begin();
     end_iter = edges.end();
 }
-
-// Empty batch
-RmatBatch::RmatBatch()
-: Batch(edges.begin(), edges.end()) {}
-

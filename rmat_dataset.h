@@ -20,7 +20,6 @@ protected:
     std::vector<Edge> edges;
 public:
     explicit RmatBatch(rmat_edge_generator& generator, int64_t size, int64_t first_timestamp);
-    explicit RmatBatch();
 };
 
 class RmatDataset : public IDataset {

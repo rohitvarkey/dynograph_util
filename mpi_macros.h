@@ -20,7 +20,8 @@ if (::boost::mpi::communicator().rank() == 0)
 
 #else
 
-#define MPI_RANK_0_ONLY
+#define MPI_RANK_0_ONLY \
+if (true)
 #define MPI_BROADCAST_RESULT(X)
 #define MPI_BARRIER()
 

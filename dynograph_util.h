@@ -3,12 +3,10 @@
 #include <hooks.h>
 #include <inttypes.h>
 #include <vector>
-#include <map>
 #include <string>
 #include <memory>
 #include <sstream>
 #include <iostream>
-#include <algorithm>
 #include <assert.h>
 
 #include "mpi_macros.h"
@@ -52,12 +50,16 @@ operator<<(std::ostream &os, const Edge &e) {
     return os;
 }
 
+// Represents a list of edges that should be inserted into the graph
+// The goal of this class is to provide an interface similar to a std::vector<Edge>,
+// while allowing flexibility in where the edges are actually stored.
 class Batch
 {
 public:
     typedef std::vector<Edge>::const_iterator iterator;
     iterator begin() const { return begin_iter; }
     iterator end() const { return end_iter; }
+    Batch() : begin_iter(empty_vec.begin()), end_iter(empty_vec.end()) {}
     Batch(iterator begin, iterator end)
     : begin_iter(begin), end_iter(end) {}
     virtual int64_t num_vertices_affected() const;
@@ -70,6 +72,8 @@ public:
     virtual ~Batch() = default;
 protected:
     iterator begin_iter, end_iter;
+    // In order to represent an empty batch, we need something to point to
+    std::vector<Edge> empty_vec;
 };
 
 class IDataset
@@ -123,6 +127,7 @@ public:
 };
 
 // Holds a vertex id and its out degree
+// May be useful for implementing DynamicGraph::get_high_degree_vertices
 struct vertex_degree
 {
     int64_t vertex_id;
