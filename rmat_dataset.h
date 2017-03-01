@@ -40,11 +40,12 @@ public:
     std::shared_ptr<Batch> getBatchesUpTo(int64_t batchId);
     int64_t getNumBatches() const;
     int64_t getNumEdges() const;
+    int64_t getMinTimestamp() const;
+    int64_t getMaxTimestamp() const;
 
     bool isDirected() const;
     int64_t getMaxVertexId() const;
 
-    bool enableAlgsForBatch(int64_t i) const;
     void reset();
 };
 

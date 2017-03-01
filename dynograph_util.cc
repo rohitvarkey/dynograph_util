@@ -150,6 +150,23 @@ DynoGraph::get_preprocessed_batch(int64_t batchId, IDataset &dataset, Args::SORT
     }
 }
 
+bool
+DynoGraph::enable_algs_for_batch(int64_t batch_id, int64_t num_batches, int64_t num_epochs) {
+    bool enable;
+    MPI_RANK_0_ONLY {
+    // How many batches in each epoch, on average?
+    double batches_per_epoch = true_div(num_batches, num_epochs);
+    // How many algs run before this batch?
+    int64_t batches_before = round_down(true_div(batch_id, batches_per_epoch));
+    // How many algs should run after this batch?
+    int64_t batches_after = round_down(true_div((batch_id + 1), batches_per_epoch));
+    // If the count changes between this batch and the next, we should run an alg now
+    enable = (batches_after - batches_before) > 0;
+    }
+    MPI_BROADCAST_RESULT(enable);
+    return enable;
+}
+
 void
 DynoGraph::die()
 {

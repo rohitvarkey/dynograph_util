@@ -86,8 +86,8 @@ public:
     virtual int64_t getNumEdges() const = 0;
     virtual bool isDirected() const = 0;
     virtual int64_t getMaxVertexId() const = 0;
-    // TODO move this method out of IDataset, it doesn't depend on the graph
-    virtual bool enableAlgsForBatch(int64_t i) const = 0;
+    virtual int64_t getMinTimestamp() const = 0;
+    virtual int64_t getMaxTimestamp() const = 0;
     virtual void reset() {};
     virtual ~IDataset() = default;
 };
@@ -147,6 +147,9 @@ create_dataset(const Args &args);
 
 std::shared_ptr<Batch>
 get_preprocessed_batch(int64_t batchId, IDataset &dataset, Args::SORT_MODE sort_mode);
+
+bool
+enable_algs_for_batch(int64_t batch_id, int64_t num_batches, int64_t num_epochs);
 
 template<typename graph_t>
 void
@@ -213,7 +216,7 @@ run(int argc, char **argv)
             // In snapshot mode, we construct a new graph before each epoch
             } else if (args.sort_mode == SORT_MODE::SNAPSHOT) {
 
-                if (dataset->enableAlgsForBatch(batch_id))
+                if (enable_algs_for_batch(batch_id, num_batches, args.num_epochs))
                 {
                     logger << "Reinitializing graph\n";
                     // graph = graph_t(dataset, args) is no good here,
@@ -239,7 +242,7 @@ run(int argc, char **argv)
             }
 
             // Graph algorithm benchmarks
-            if (dataset->enableAlgsForBatch(batch_id)) {
+            if (enable_algs_for_batch(batch_id, num_batches, args.num_epochs)) {
 
                 for (int64_t alg_trial = 0; alg_trial < args.num_alg_trials; ++alg_trial)
                 {

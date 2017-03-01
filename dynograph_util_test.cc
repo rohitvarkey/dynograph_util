@@ -66,13 +66,15 @@ TEST_P(DatasetTest, LoadDatasetCorrectly) {
     }
 }
 
+// TODO this isn't a dataset test anymore, now that enable_algs_for_batch is a free function
 TEST_P(DatasetTest, DontSkipAnyEpochs) {
     const Args &args = GetParam();
 
     int64_t actual_num_epochs = 0;
-    for (int64_t i = 0; i < dataset->getNumBatches(); ++i)
+    int64_t num_batches = dataset->getNumBatches();
+    for (int64_t i = 0; i < num_batches; ++i)
     {
-        bool run_epoch = dataset->enableAlgsForBatch(i);
+        bool run_epoch = enable_algs_for_batch(i, num_batches, args.num_epochs);
         if (run_epoch) {
             actual_num_epochs += 1;
         }
