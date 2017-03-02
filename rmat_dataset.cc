@@ -171,6 +171,24 @@ RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first
         e.weight = 1;
         e.timestamp = first_timestamp++;
     }
+
+
+// Generate edges in parallel
+//    int pos = 0;
+//    #pragma omp parallel for firstprivate(generator, pos) schedule(static)
+//    for (int i = 0; i < size; ++i)
+//    {
+//        if (pos != i) {
+//            generator.discard(i - pos);
+//            pos = i;
+//        }
+//        Edge& e = edges[i];
+//        generator.next_edge(&e.src, &e.dst);
+//        e.weight = 1;
+//        e.timestamp = first_timestamp++;
+//    }
+
+
     begin_iter = edges.begin();
     end_iter = edges.end();
 }

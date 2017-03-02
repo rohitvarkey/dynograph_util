@@ -49,3 +49,21 @@ TEST(RmatDatasetTest, DeterministicParallelGeneration)
 
     EXPECT_EQ(*serial_batch, *parallel_batch);
 }
+
+TEST(RmatDatasetTest, NoSelfEdges)
+{
+    Args args = {1, "dummy", 1000, {}, DynoGraph::Args::SORT_MODE::SNAPSHOT, 1.0, 1, 1};
+    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-1M-10K.rmat");
+    RmatDataset dataset(args, rmat_args);
+
+    int64_t num_batches = dataset.getNumBatches();
+
+    for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id)
+    {
+        std::shared_ptr<Batch> batch = dataset.getBatch(batch_id);
+        EXPECT_EQ(batch->size(), args.batch_size);
+        for (Edge e : *batch) {
+            EXPECT_NE(e.src, e.dst);
+        }
+    }
+}
