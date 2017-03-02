@@ -8,6 +8,7 @@
 #include <sstream>
 #include <iostream>
 #include <assert.h>
+#include <algorithm>
 
 #include "mpi_macros.h"
 #include "alg_data_manager.h"
@@ -75,6 +76,11 @@ protected:
     // In order to represent an empty batch, we need something to point to
     std::vector<Edge> empty_vec;
 };
+
+inline bool operator== (const Batch& a, const Batch& b) {
+    if (a.size() != b.size()) { return false; }
+    return std::equal(a.begin(), a.end(), b.begin());
+}
 
 class IDataset
 {

@@ -42,8 +42,8 @@ RmatArgs::validate() const {
     std::ostringstream oss;
     // Validate parameters
     if (a < 0 || b < 0 || c < 0 || d < 0
-        ||  a > 1 || b > 1 || c > 1 || d > 1
-        ||  a + b + c + d > 1.0)
+    ||  a > 1 || b > 1 || c > 1 || d > 1
+    ||  a + b + c + d != 1.0)
     {
         oss << "Invalid arguments: RMAT parameters must be fall in the range [0, 1] and sum to 1\n";
     } else if (num_edges < 0 || num_vertices < 0) {
