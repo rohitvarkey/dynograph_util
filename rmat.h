@@ -1,33 +1,38 @@
 
 // Adapted from the stinger project <https://github.com/stingergraph/stinger> rmat.c
 #include <inttypes.h>
+#include <random>
+#include "prng_engine.hpp"
 
 namespace DynoGraph {
 
 class rmat_edge_generator {
 private:
-    class dxor128_generator {
-    private:
-        unsigned x,y,z,w;
-    public:
-        dxor128_generator(unsigned seed = 88675123)
-            : x(123456789), y(362436069), z(521288629), w(seed) {}
+    // Generates uniformly distributed uint32_t's
+    // Implements discard() in constant time
+    sitmo::prng_engine rng_engine;
+    // Converts values from the rng_engine into double type
+    std::uniform_real_distribution<double> rng_distribution;
+    double rng() { return rng_distribution(rng_engine); }
 
-        double operator() () {
-            unsigned t=x^(x<<11);
-            x=y; y=z; z=w; w=(w^(w>>19))^(t^(t>>8));
-            return w*(1.0/4294967296.0);
-        }
-    };
-    dxor128_generator dxor128;
+    // log2(num_vertices)
     int64_t SCALE;
+    // RMAT parameters
     double a, b, c, d;
 
 public:
-    rmat_edge_generator(int64_t nv, double a, double b, double c, double d)
-    : SCALE(0), a(a), b(b), c(c), d(d)
+    rmat_edge_generator(int64_t nv, double a, double b, double c, double d, uint32_t seed=0)
+    : rng_engine(seed)
+    , rng_distribution(0, 1)
+    , SCALE(0), a(a), b(b), c(c), d(d)
     {
         while (nv >>= 1) { ++SCALE; }
+    }
+
+    // Skips past the next n randomly generated edges
+    void discard(uint64_t n) {
+        // The loop in next_edge iterates SCALE times, using 5 random numbers in each iteration
+        rng_engine.discard(5 * SCALE * n);
     }
 
     void next_edge(int64_t *src, int64_t *dst)
@@ -40,7 +45,7 @@ public:
         int64_t bit = ((int64_t) 1) << (SCALE - 1);
 
         while (1) {
-            const double r = dxor128();
+            const double r = rng();
             if (r > A) {                /* outside quadrant 1 */
                 if (r <= A + B)           /* in quadrant 2 */
                     j |= bit;
@@ -59,10 +64,10 @@ public:
               So the new probabilities are *not* the old +/- 10% but
               instead the old +/- 5%.
             */
-            A *= (9.5 + dxor128()) / 10;
-            B *= (9.5 + dxor128()) / 10;
-            C *= (9.5 + dxor128()) / 10;
-            D *= (9.5 + dxor128()) / 10;
+            A *= (9.5 + rng()) / 10;
+            B *= (9.5 + rng()) / 10;
+            C *= (9.5 + rng()) / 10;
+            D *= (9.5 + rng()) / 10;
             /* Used 5 random numbers. */
 
             {
