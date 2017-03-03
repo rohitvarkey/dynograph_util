@@ -81,9 +81,8 @@ public:
     void discard(uint64_t n)
     {
         // The loop in next_edge iterates SCALE-1 times, using 5 random numbers in each iteration
-        n *= 5 * (SCALE-1);
         // The final iteration before the break uses one more random number
-        n += 1;
+        n *= 5 * (SCALE-1) + 1;
         // std::uniform_real_distribution<double> calls the generator multiple times to get enough entropy
         n *= k;
 
