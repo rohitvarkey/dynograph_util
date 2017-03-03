@@ -45,9 +45,9 @@ TEST(PrngEngineTest, DiscardActuallyWorks)
         // Manually advance a
         for (int i = 0; i < skip; ++i) { a(); }
         // Use "discard" to advance b
-        engine_b.discard(skip);
-
-        EXPECT_TRUE(engine_a == engine_b);
+        // 2 is the number of times std::uniform_real_distribution<double>
+        // will call sitmo::prng_engine
+        engine_b.discard(skip*2);
 
         // Make sure they have the same state
         EXPECT_EQ(a(), b());
