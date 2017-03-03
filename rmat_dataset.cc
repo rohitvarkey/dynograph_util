@@ -185,13 +185,15 @@ RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first
             uint64_t skip_distance = static_cast<uint64_t>(i - pos);
             local_rng.discard(skip_distance);
             first_timestamp += skip_distance;
-            pos = i;
         }
         // Generate the next random edge
         Edge& e = edges[i];
         local_rng.next_edge(&e.src, &e.dst);
         e.weight = 1; // TODO random weights
         e.timestamp = first_timestamp++;
+
+        // Remember position, in case OpenMP jumps through the iteration space
+        pos = i+1;
     }
 
     // Go back through the list and regenerate self-edges

@@ -101,20 +101,18 @@ TEST(RmatEdgeGeneratorTest, DiscardActuallyWorks)
 
 TEST(RmatDatasetTest, DeterministicParallelGeneration)
 {
-    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-10-10K.rmat");
+    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-25K-10K.rmat");
     Args args = {1, "dummy", rmat_args.num_edges, {}, DynoGraph::Args::SORT_MODE::UNSORTED, 1.0, 1, 1};
 
     RmatDataset dataset(args, rmat_args);
 
     omp_set_num_threads(4);
-    std::cerr << "Generating batch in parallel..." << omp_get_max_threads() << " threads\n";
     std::shared_ptr<Batch> parallel_batch = dataset.getBatch(0);
     EXPECT_EQ(parallel_batch->size(), args.batch_size);
 
     dataset.reset();
 
     omp_set_num_threads(1);
-    std::cerr << "Generating batch in serial...\n";
     std::shared_ptr<Batch> serial_batch = dataset.getBatch(0);
     EXPECT_EQ(serial_batch->size(), args.batch_size);
 
