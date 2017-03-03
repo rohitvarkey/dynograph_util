@@ -21,19 +21,6 @@ using std::shared_ptr;
 using std::make_shared;
 using std::stringstream;
 
-// Produces a filtered batch, in which all edges have timestamps newer than the threshold value
-class FilteredBatch : public Batch
-{
-public:
-    explicit FilteredBatch(const Batch& batch, int64_t threshold)
-    : Batch(batch)
-    {
-        // Skip past edges that are older than the threshold
-        begin_iter = std::find_if(batch.begin(), batch.end(),
-            [threshold](const Edge& e) { return e.timestamp >= threshold; });
-    }
-};
-
 // Produces a deduplicated batch, in which there are no duplicate edges
 class DeduplicatedBatch : public Batch
 {
@@ -134,17 +121,20 @@ DynoGraph::get_preprocessed_batch(int64_t batchId, IDataset &dataset, Args::SORT
         case Args::SORT_MODE::UNSORTED:
         {
             shared_ptr<Batch> batch(dataset.getBatch(batchId));
-            return make_shared<FilteredBatch>(*batch, threshold);;
+            batch->filter(threshold);
+            return batch;
         }
         case Args::SORT_MODE::PRESORT:
         {
             shared_ptr<Batch> batch(dataset.getBatch(batchId));
-            return make_shared<DeduplicatedBatch>(FilteredBatch(*batch, threshold));
+            batch->filter(threshold);
+            return make_shared<DeduplicatedBatch>(*batch);
         }
         case Args::SORT_MODE::SNAPSHOT:
         {
             shared_ptr<Batch> cumulative_snapshot(dataset.getBatchesUpTo(batchId));
-            return make_shared<DeduplicatedBatch>(FilteredBatch(*cumulative_snapshot, threshold));
+            cumulative_snapshot->filter(threshold);
+            return make_shared<DeduplicatedBatch>(*cumulative_snapshot);
         }
         default: assert(0); return nullptr;
     }

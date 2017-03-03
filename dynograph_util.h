@@ -64,6 +64,10 @@ public:
     Batch(iterator begin, iterator end)
     : begin_iter(begin), end_iter(end) {}
     virtual int64_t num_vertices_affected() const;
+    void filter(int64_t threshold) {
+        begin_iter = std::find_if(begin_iter, end_iter,
+            [threshold](const Edge& e) { return e.timestamp >= threshold; });
+    }
     const Edge& operator[] (size_t i) const {
         assert(begin_iter + i < end_iter);
         return *(begin_iter + i);
