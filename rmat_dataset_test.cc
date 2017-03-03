@@ -29,23 +29,94 @@ TEST(RmatArgsTest, Validation)
     EXPECT_FALSE(rmat_args.validate().empty());
 }
 
+TEST(PrngEngineTest, DiscardActuallyWorks)
+{
+    sitmo::prng_engine engine_a, engine_b;
+    std::uniform_real_distribution<double> dist_a, dist_b;
+
+    auto a = [&]() { return dist_a(engine_a); };
+    auto b = [&]() { return dist_b(engine_b); };
+
+    ASSERT_EQ(a(), b());
+    ASSERT_EQ(a(), b());
+
+    // Make sure skipping does the right thing
+    for (int skip : {1, 5, 1000}) {
+        // Manually advance a
+        for (int i = 0; i < skip; ++i) { a(); }
+        // Use "discard" to advance b
+        engine_b.discard(skip);
+
+        EXPECT_TRUE(engine_a == engine_b);
+
+        // Make sure they have the same state
+        EXPECT_EQ(a(), b());
+        EXPECT_EQ(a(), b());
+    }
+}
+
+TEST(RmatEdgeGeneratorTest, DiscardActuallyWorks)
+{
+    // Create an rmat edge generator
+    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-12G-8M.rmat");
+    uint32_t seed = 0;
+    rmat_edge_generator gen1(
+        rmat_args.num_vertices,
+        rmat_args.a,
+        rmat_args.b,
+        rmat_args.c,
+        rmat_args.d,
+        seed
+    );
+
+    // Make a copy
+    rmat_edge_generator gen2 = gen1;
+
+    // Helper func to get the next edge from a generator (init weight and timestamp to 0)
+    auto next = [](rmat_edge_generator& gen) {
+        Edge e;
+        gen.next_edge(&e.src, &e.dst);
+        e.weight = 0;
+        e.timestamp = 0;
+        return e;
+    };
+
+    // Make sure the copy has the same state
+    ASSERT_EQ(next(gen1), next(gen2));
+    ASSERT_EQ(next(gen1), next(gen2));
+
+    // Make sure skipping does the right thing
+    for (int skip : {1, 5, 1000}) {
+        // Manually advance gen1
+        for (int i = 0; i < skip; ++i) { next(gen1); }
+        // Use "discard" to advance gen2
+        gen2.discard(skip);
+        // Make sure they have the same state
+        ASSERT_EQ(next(gen1), next(gen2));
+        ASSERT_EQ(next(gen1), next(gen2));
+    }
+
+}
+
 
 TEST(RmatDatasetTest, DeterministicParallelGeneration)
 {
-    Args args = {1, "dummy", 1000, {}, DynoGraph::Args::SORT_MODE::SNAPSHOT, 1.0, 1, 1};
-    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-1M-10K.rmat");
+    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-10-10K.rmat");
+    Args args = {1, "dummy", rmat_args.num_edges, {}, DynoGraph::Args::SORT_MODE::UNSORTED, 1.0, 1, 1};
+
     RmatDataset dataset(args, rmat_args);
 
-    omp_set_num_threads(1);
-
-    std::shared_ptr<Batch> serial_batch = dataset.getBatch(0);
-    EXPECT_EQ(serial_batch->size(), args.batch_size);
+    omp_set_num_threads(4);
+    std::cerr << "Generating batch in parallel..." << omp_get_max_threads() << " threads\n";
+    std::shared_ptr<Batch> parallel_batch = dataset.getBatch(0);
+    EXPECT_EQ(parallel_batch->size(), args.batch_size);
 
     dataset.reset();
 
-    omp_set_num_threads(omp_get_max_threads());
-    std::shared_ptr<Batch> parallel_batch = dataset.getBatch(0);
-    EXPECT_EQ(parallel_batch->size(), args.batch_size);
+    omp_set_num_threads(1);
+    std::cerr << "Generating batch in serial...\n";
+    std::shared_ptr<Batch> serial_batch = dataset.getBatch(0);
+    EXPECT_EQ(serial_batch->size(), args.batch_size);
 
     EXPECT_EQ(*serial_batch, *parallel_batch);
 }
@@ -53,7 +124,7 @@ TEST(RmatDatasetTest, DeterministicParallelGeneration)
 TEST(RmatDatasetTest, NoSelfEdges)
 {
     Args args = {1, "dummy", 1000, {}, DynoGraph::Args::SORT_MODE::SNAPSHOT, 1.0, 1, 1};
-    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-1M-10K.rmat");
+    RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-10K-10K.rmat");
     RmatDataset dataset(args, rmat_args);
 
     int64_t num_batches = dataset.getNumBatches();

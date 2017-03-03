@@ -163,32 +163,52 @@ RmatDataset::reset() {
 RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first_timestamp)
     : Batch(edges.begin(), edges.end()), edges(size)
 {
-    for (int i = 0; i < size; ++i)
+    // Make a local copy of the edge generator
+    rmat_edge_generator local_rng = generator;
+
+    // Keeps track of this thread's position in the random number stream relative to the loop index
+    int64_t pos = 0;
+
+    // Generate edges in parallel, while maintaining RNG state as if we did it serially
+    // Mark the RNG with firstprivate so each thread gets a copy of the inital state
+    // Also mark the RNG with lastprivate so the master thread gets the state after the last iteration
+    #pragma omp parallel for \
+    firstprivate(local_rng) lastprivate(local_rng) \
+    firstprivate(pos, first_timestamp) \
+    schedule(static)
+    for (int64_t i = 0; i < size; ++i)
     {
+        // Assuming we will always execute loop iterations in order (we can't jump backwards)
+        assert(pos <= i);
+        // Advance RNG whenever we skip ahead in the iteration space
+        if (pos < i) {
+            uint64_t skip_distance = static_cast<uint64_t>(i - pos);
+            local_rng.discard(skip_distance);
+            first_timestamp += skip_distance;
+            pos = i;
+        }
+        // Generate the next random edge
         Edge& e = edges[i];
-        do { generator.next_edge(&e.src, &e.dst); }
-        while (e.src == e.dst); // Discard self-edges
-        e.weight = 1;
+        local_rng.next_edge(&e.src, &e.dst);
+        e.weight = 1; // TODO random weights
         e.timestamp = first_timestamp++;
     }
 
+    // Go back through the list and regenerate self-edges
+    // This step is serial, since we don't know how many times each edge has to be
+    // re-rolled before we get a non-self-edge
+    for (int64_t i = 0; i < size; ++i)
+    {
+        Edge& e = edges[i];
+        while (e.src == e.dst) {
+            local_rng.next_edge(&e.src, &e.dst);
+        }
+    }
 
-// Generate edges in parallel
-//    int pos = 0;
-//    #pragma omp parallel for firstprivate(generator, pos) schedule(static)
-//    for (int i = 0; i < size; ++i)
-//    {
-//        if (pos != i) {
-//            generator.discard(i - pos);
-//            pos = i;
-//        }
-//        Edge& e = edges[i];
-//        generator.next_edge(&e.src, &e.dst);
-//        e.weight = 1;
-//        e.timestamp = first_timestamp++;
-//    }
+    // Copy final RNG state back to caller
+    generator = local_rng;
 
-
+    // Initialize batch pointers
     begin_iter = edges.begin();
     end_iter = edges.end();
 }
