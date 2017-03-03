@@ -102,21 +102,35 @@ TEST(RmatEdgeGeneratorTest, DiscardActuallyWorks)
 TEST(RmatDatasetTest, DeterministicParallelGeneration)
 {
     RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-25K-10K.rmat");
-    Args args = {1, "dummy", rmat_args.num_edges, {}, DynoGraph::Args::SORT_MODE::UNSORTED, 1.0, 1, 1};
+    int64_t num_batches = 10;
+    int64_t batch_size = rmat_args.num_edges / num_batches;
+    Args args = {1, "dummy", num_batches, {}, DynoGraph::Args::SORT_MODE::UNSORTED, 1.0, 1, 1};
 
+    using std::shared_ptr;
+    using std::vector;
+    vector<shared_ptr<Batch>> serial_batches;
+    vector<shared_ptr<Batch>> parallel_batches;
+    // Initialize the RMAT graph generator
     RmatDataset dataset(args, rmat_args);
-
-    omp_set_num_threads(4);
-    std::shared_ptr<Batch> parallel_batch = dataset.getBatch(0);
-    EXPECT_EQ(parallel_batch->size(), args.batch_size);
-
-    dataset.reset();
-
+    // Remember how many threads we have
+    int max_num_threads = omp_get_max_threads();
+    // Generate all the batches serially
     omp_set_num_threads(1);
-    std::shared_ptr<Batch> serial_batch = dataset.getBatch(0);
-    EXPECT_EQ(serial_batch->size(), args.batch_size);
+    for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id) {
+        serial_batches.push_back(dataset.getBatch(batch_id));
+    }
+    // Reset the generator
+    dataset.reset();
+    // Generate all the batches in parallel
+    omp_set_num_threads(max_num_threads);
+    for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id) {
+        parallel_batches.push_back(dataset.getBatch(batch_id));
+    }
 
-    EXPECT_EQ(*serial_batch, *parallel_batch);
+    // Compare serial/parallel to make sure they match
+    for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id) {
+        EXPECT_EQ(*serial_batches[batch_id], *parallel_batches[batch_id]);
+    }
 }
 
 TEST(RmatDatasetTest, NoSelfEdges)
