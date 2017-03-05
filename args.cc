@@ -158,7 +158,7 @@ DynoGraph::operator <<(std::ostream& os, Args::SORT_MODE sort_mode)
         case Args::SORT_MODE::UNSORTED: os << "unsorted"; break;
         case Args::SORT_MODE::PRESORT: os << "presort"; break;
         case Args::SORT_MODE::SNAPSHOT: os << "snapshot"; break;
-        default: assert(0);
+        default: os << "UNINITIALIZED"; break;
     }
     return os;
 }

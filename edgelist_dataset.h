@@ -1,5 +1,6 @@
 #pragma once
 #include "dynograph_util.h"
+#include "pvector.h"
 
 namespace DynoGraph {
 
@@ -15,8 +16,8 @@ private:
     int64_t min_timestamp;
     int64_t max_timestamp;
 
-    std::vector<Edge> edges;
-    std::vector<Batch> batches;
+    pvector<Edge> edges;
+    pvector<Batch> batches;
 
 public:
     EdgeListDataset(Args args);

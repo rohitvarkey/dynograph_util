@@ -183,7 +183,7 @@ EdgeListDataset::getBatch(int64_t batchId)
 shared_ptr<Batch>
 EdgeListDataset::getBatchesUpTo(int64_t batchId)
 {
-    return make_shared<Batch>(edges.begin(), batches[batchId].end());
+    return make_shared<Batch>(&*edges.begin(), batches[batchId].end());
 }
 
 bool

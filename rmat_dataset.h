@@ -2,6 +2,7 @@
 
 #include "dynograph_util.h"
 #include "rmat.h"
+#include "pvector.h"
 
 namespace DynoGraph {
 
@@ -17,7 +18,7 @@ struct RmatArgs
 class RmatBatch : public Batch
 {
 protected:
-    std::vector<Edge> edges;
+    pvector<Edge> edges;
 public:
     explicit RmatBatch(rmat_edge_generator& generator, int64_t size, int64_t first_timestamp);
 };

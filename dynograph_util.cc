@@ -12,6 +12,7 @@
 #include "rmat_dataset.h"
 #include "helpers.h"
 #include "args.h"
+#include "pvector.h"
 
 using namespace DynoGraph;
 using std::cerr;
@@ -25,13 +26,13 @@ using std::stringstream;
 class DeduplicatedBatch : public Batch
 {
 protected:
-    std::vector<Edge> deduped_edges;
+    pvector<Edge> deduped_edges;
 public:
     explicit DeduplicatedBatch(const Batch& batch)
-    : Batch(batch), deduped_edges(std::distance(batch.begin(), batch.end()))
+    : Batch(batch), deduped_edges(batch.size())
     {
         // Make a copy of the original batch
-        std::vector<Edge> sorted_edges(batch.begin(), batch.end()); // TODO is this init done in parallel?
+        pvector<Edge> sorted_edges(batch.begin(), batch.end());
         // Sort the edge list
         std::sort(sorted_edges.begin(), sorted_edges.end());
 
@@ -42,29 +43,27 @@ public:
                 // The input is sorted, so we'll only get the most recent timestamp
                 // BUG: Does not combine weights
                 [](const Edge& a, const Edge& b) { return a.src == b.src && a.dst == b.dst; });
-        deduped_edges.erase(end, deduped_edges.end());
+        deduped_edges.resize(end - deduped_edges.begin());
 
         // Reinitialize the batch pointers
-        begin_iter = deduped_edges.begin();
-        end_iter = deduped_edges.end();
+        begin_iter = &*deduped_edges.begin();
+        end_iter = &*deduped_edges.end();
     }
 
     virtual int64_t num_vertices_affected() const
     {
         // Get a list of just the vertex ID's in this batch
-        vector<int64_t> src_vertices(deduped_edges.size());
-        vector<int64_t> dst_vertices(deduped_edges.size());
-        std::transform(deduped_edges.begin(), deduped_edges.end(), src_vertices.begin(),
+        pvector<int64_t> vertices(deduped_edges.size() * 2);
+        std::transform(deduped_edges.begin(), deduped_edges.end(), vertices.begin(),
                 [](const Edge& e){ return e.src; });
-        std::transform(deduped_edges.begin(), deduped_edges.end(), dst_vertices.begin(),
+        std::transform(deduped_edges.begin(), deduped_edges.end(), vertices.begin() + deduped_edges.size(),
                 [](const Edge& e){ return e.dst; });
-        src_vertices.insert(src_vertices.end(), dst_vertices.begin(), dst_vertices.end());
 
         // Deduplicate
-        vector<int64_t> unique_vertices(src_vertices.size());
-        std::sort(src_vertices.begin(), src_vertices.end());
-        auto end = std::unique_copy(src_vertices.begin(), src_vertices.end(), unique_vertices.begin());
-        unique_vertices.erase(end, unique_vertices.end());
+        pvector<int64_t> unique_vertices(vertices.size());
+        std::sort(vertices.begin(), vertices.end());
+        auto end = std::unique_copy(vertices.begin(), vertices.end(), unique_vertices.begin());
+        unique_vertices.resize(end - unique_vertices.begin());
 
         return unique_vertices.size();
     }

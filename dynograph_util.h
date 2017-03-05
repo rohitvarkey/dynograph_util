@@ -10,6 +10,8 @@
 #include <assert.h>
 #include <algorithm>
 
+#include "range.h"
+#include "pvector.h"
 #include "mpi_macros.h"
 #include "alg_data_manager.h"
 #include "logger.h"
@@ -52,39 +54,19 @@ operator<<(std::ostream &os, const Edge &e) {
 }
 
 // Represents a list of edges that should be inserted into the graph
-// The goal of this class is to provide an interface similar to a std::vector<Edge>,
-// while allowing flexibility in where the edges are actually stored.
-class Batch
+class Batch : public Range<Edge>
 {
 public:
-    typedef std::vector<Edge>::const_iterator iterator;
-    iterator begin() const { return begin_iter; }
-    iterator end() const { return end_iter; }
-    Batch() : begin_iter(empty_vec.begin()), end_iter(empty_vec.end()) {}
-    Batch(iterator begin, iterator end)
-    : begin_iter(begin), end_iter(end) {}
+    using Range<Edge>::Range;
+    Batch() = default;
     virtual int64_t num_vertices_affected() const;
     void filter(int64_t threshold) {
         begin_iter = std::find_if(begin_iter, end_iter,
             [threshold](const Edge& e) { return e.timestamp >= threshold; });
     }
-    const Edge& operator[] (size_t i) const {
-        assert(begin_iter + i < end_iter);
-        return *(begin_iter + i);
-    }
-    size_t size() const { return end_iter - begin_iter; }
     bool is_directed() const { return true; }
     virtual ~Batch() = default;
-protected:
-    iterator begin_iter, end_iter;
-    // In order to represent an empty batch, we need something to point to
-    std::vector<Edge> empty_vec;
 };
-
-inline bool operator== (const Batch& a, const Batch& b) {
-    if (a.size() != b.size()) { return false; }
-    return std::equal(a.begin(), a.end(), b.begin());
-}
 
 class IDataset
 {
@@ -124,7 +106,7 @@ public:
         const std::vector<int64_t> &sources,
         // Contains the results from the previous epoch (for incremental algorithms)
         // Results should be written to this array
-        std::vector<int64_t> &data
+        Range<int64_t> data
     ) = 0;
     // Return the degree of the specified vertex
     virtual int64_t get_out_degree(int64_t vertex_id) const = 0;

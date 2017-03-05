@@ -164,7 +164,7 @@ RmatDataset::reset() {
 
 // Implementation of RmatBatch
 RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first_timestamp)
-    : Batch(edges.begin(), edges.end()), edges(size)
+: edges(size)
 {
     // Make a local copy of the edge generator
     rmat_edge_generator local_rng = generator;
@@ -214,6 +214,6 @@ RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first
     generator = local_rng;
 
     // Initialize batch pointers
-    begin_iter = edges.begin();
-    end_iter = edges.end();
+    begin_iter = &*edges.begin();
+    end_iter = &*edges.end();
 }

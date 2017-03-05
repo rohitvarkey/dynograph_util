@@ -127,9 +127,18 @@ TEST(RmatDatasetTest, DeterministicParallelGeneration)
         parallel_batches.push_back(dataset.getBatch(batch_id));
     }
 
+    auto batches_equal = [](const Batch& a, const Batch& b){
+        if (a.size() != b.size()) {
+            return ::testing::AssertionFailure();
+        } else {
+            return std::equal(a.begin(), a.end(), b.begin())
+                ? ::testing::AssertionSuccess() : ::testing::AssertionFailure();
+        }
+    };
+
     // Compare serial/parallel to make sure they match
     for (int64_t batch_id = 0; batch_id < num_batches; ++batch_id) {
-        EXPECT_EQ(*serial_batches[batch_id], *parallel_batches[batch_id]);
+        ASSERT_TRUE(batches_equal(*serial_batches[batch_id], *parallel_batches[batch_id]));
     }
 }
 

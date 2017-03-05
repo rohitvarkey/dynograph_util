@@ -8,10 +8,11 @@ using namespace DynoGraph;
 
 AlgDataManager::AlgDataManager(int64_t nv, std::vector<std::string> alg_names)
 {
+    using std::make_pair;
     for (std::string alg_name : alg_names)
     {
-        last_epoch_data[alg_name].resize(nv);
-        current_epoch_data[alg_name].resize(nv);
+        last_epoch_data.emplace(alg_name, nv);
+        current_epoch_data.emplace(alg_name, nv);
     }
 
     path = "";
@@ -25,12 +26,12 @@ void
 AlgDataManager::next_epoch()
 {
     // "last" <= "current" for each alg
-    for (auto entry : current_epoch_data)
+    for (auto& entry : current_epoch_data)
     {
         std::string alg_name = entry.first;
         auto& last = last_epoch_data[alg_name];
         auto& current = current_epoch_data[alg_name];
-        last.assign(current.begin(), current.end());
+        last = current;
     }
 }
 
@@ -38,12 +39,12 @@ void
 AlgDataManager::rollback()
 {
     // "current" <= "last" for each alg
-    for (auto entry : current_epoch_data)
+    for (auto& entry : current_epoch_data)
     {
         std::string alg_name = entry.first;
         auto& last = last_epoch_data[alg_name];
         auto& current = current_epoch_data[alg_name];
-        current.assign(last.begin(), last.end());
+        current = last;
     }
 }
 
@@ -57,7 +58,7 @@ AlgDataManager::dump(int64_t epoch) const
     mkdir(path_root.c_str(), 0700);
 
     // Write current epoch results to disk
-    for (auto entry : current_epoch_data)
+    for (auto& entry : current_epoch_data)
     {
         int64_t *ptr = entry.second.data();
         size_t sz = entry.second.size();
@@ -73,7 +74,7 @@ AlgDataManager::dump(int64_t epoch) const
     }
 }
 
-std::vector<int64_t>&
+DynoGraph::Range<int64_t>
 AlgDataManager::get_data_for_alg(std::string alg_name) {
-    return current_epoch_data.at(alg_name);
+    return DynoGraph::Range<int64_t>(current_epoch_data.at(alg_name));
 }

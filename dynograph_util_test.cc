@@ -120,6 +120,7 @@ TEST_P(SortModeTest, SortModeDoesntAffectEdgeCount)
 {
     DynoGraph::Args args = GetParam();
     typedef DynoGraph::Args::SORT_MODE SORT_MODE;
+    args.sort_mode = SORT_MODE::UNSORTED;
     DynoGraph::EdgeListDataset dataset(args);
     int64_t max_vertex_id = dataset.getMaxVertexId();
 
