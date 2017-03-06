@@ -11,8 +11,8 @@ AlgDataManager::AlgDataManager(int64_t nv, std::vector<std::string> alg_names)
     using std::make_pair;
     for (std::string alg_name : alg_names)
     {
-        last_epoch_data.emplace(alg_name, nv);
-        current_epoch_data.emplace(alg_name, nv);
+        last_epoch_data.emplace(make_pair(alg_name, pvector<int64_t>(nv)));
+        current_epoch_data.emplace(make_pair(alg_name, pvector<int64_t>(nv)));
     }
 
     path = "";
