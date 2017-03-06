@@ -79,6 +79,14 @@ class pvector {
     other.end_capacity_ = nullptr;
   }
 
+  pvector& operator= (const pvector &other)
+  {
+    resize(other.size());
+    #pragma omp parallel for
+    for (size_t i=0; i < size(); i++)
+      start_[i] = other[i];
+  }
+
   // want move assignment
   pvector& operator= (pvector &&other) {
     start_ = other.start_;
