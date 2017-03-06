@@ -40,7 +40,7 @@ TYPED_TEST_P(ImplTest, CheckAlgs)
     this->impl.insert_batch(batch);
 
     // Allocate data for alg
-    std::vector<int64_t> alg_data(1000);
+    std::vector<int64_t> alg_data(1001);
 
     // Run all supported algs
     for (auto alg_name : this->impl.args.alg_names)

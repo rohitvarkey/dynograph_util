@@ -173,7 +173,7 @@ run(int argc, char **argv)
     std::shared_ptr<DynoGraph::IDataset> dataset = create_dataset(args);
     int64_t max_vertex_id = dataset->getMaxVertexId();
     // Initialize a buffer of data for each algorithm
-    DynoGraph::AlgDataManager alg_data_manager(max_vertex_id, args.alg_names);
+    DynoGraph::AlgDataManager alg_data_manager(max_vertex_id+1, args.alg_names);
     DynoGraph::Logger &logger = DynoGraph::Logger::get_instance();
     Hooks& hooks = Hooks::getInstance();
     typedef DynoGraph::Args::SORT_MODE SORT_MODE;
