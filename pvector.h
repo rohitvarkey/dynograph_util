@@ -85,6 +85,7 @@ class pvector {
     #pragma omp parallel for
     for (size_t i=0; i < size(); i++)
       start_[i] = other[i];
+    return *this;
   }
 
   // want move assignment
