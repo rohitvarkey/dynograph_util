@@ -171,6 +171,22 @@ class pvector {
     std::swap(end_capacity_, other.end_capacity_);
   }
 
+  const T_& front() const {
+    return *start_;
+  }
+
+  T_& front() {
+    return *start_;
+  }
+
+  const T_& back() const {
+    return *(end_size_-1);
+  }
+
+  T_& back() {
+    return *(end_size_-1);
+  }
+
 
  private:
   T_* start_;
