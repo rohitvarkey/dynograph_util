@@ -18,6 +18,10 @@ endif()
 target_link_libraries(dynograph_util hooks)
 target_include_directories(dynograph_util PUBLIC hooks)
 
+# Build the RMAT graph dumper
+add_executable(rmat_dataset_dump rmat_dataset_dump.cc)
+target_link_libraries(rmat_dataset_dump dynograph_util)
+
 # Detect if googletest was already built elsewhere
 if (NOT GOOGLETEST_DIR)
   set(GOOGLETEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/googletest/include PARENT_SCOPE)
