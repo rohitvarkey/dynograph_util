@@ -164,7 +164,7 @@ RmatDataset::reset() {
 
 // Implementation of RmatBatch
 RmatBatch::RmatBatch(rmat_edge_generator &generator, int64_t size, int64_t first_timestamp)
-: edges(size)
+: ConcreteBatch(size)
 {
     // Make a local copy of the edge generator
     rmat_edge_generator local_rng = generator;

@@ -50,9 +50,7 @@ EdgeListDataset::EdgeListDataset(Args args)
     }
 
     // Calculate max vertex id so engines can statically provision the vertex array
-    auto max_edge = std::max_element(edges.begin(), edges.end(),
-            [](const Edge& a, const Edge& b) { return std::max(a.src, a.dst) < std::max(b.src, b.dst); });
-    max_vertex_id = std::max(max_edge->src, max_edge->dst);
+    max_vertex_id = Batch(edges).max_vertex_id();
 
     // Make sure edges are sorted by timestamp, and save min/max timestamp
     if (!std::is_sorted(edges.begin(), edges.end(),

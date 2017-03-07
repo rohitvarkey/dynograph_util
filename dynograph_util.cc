@@ -22,58 +22,92 @@ using std::shared_ptr;
 using std::make_shared;
 using std::stringstream;
 
-// Produces a deduplicated batch, in which there are no duplicate edges
-class DeduplicatedBatch : public Batch
+int64_t
+Batch::num_vertices_affected() const
 {
-protected:
-    pvector<Edge> deduped_edges;
-public:
-    explicit DeduplicatedBatch(const Batch& batch)
-    : Batch(batch), deduped_edges(batch.size())
-    {
-        // Make a copy of the original batch
-        pvector<Edge> sorted_edges(batch.begin(), batch.end());
-        // Sort the edge list
-        std::sort(sorted_edges.begin(), sorted_edges.end());
+    // Get a list of just the vertex ID's in this batch
+    pvector<int64_t> vertices(size() * 2);
+    std::transform(begin_iter, end_iter, vertices.begin(),
+        [](const Edge& e){ return e.src; });
+    std::transform(begin_iter, end_iter, vertices.begin() + size(),
+        [](const Edge& e){ return e.dst; });
 
-        // Deduplicate the edge list
+    // Deduplicate
+    pvector<int64_t> unique_vertices(vertices.size());
+    std::sort(vertices.begin(), vertices.end());
+    auto end = std::unique_copy(vertices.begin(), vertices.end(), unique_vertices.begin());
+    return static_cast<int64_t>(end - unique_vertices.begin());
+}
+
+int64_t
+Batch::max_vertex_id() const {
+    auto max_edge = std::max_element(begin_iter, end_iter,
+        [](const Edge& a, const Edge& b) {
+            return std::max(a.src, a.dst) < std::max(b.src, b.dst);
+        }
+    );
+    return std::max(max_edge->src, max_edge->dst);
+}
+
+void
+Batch::filter(int64_t threshold)
+{
+    begin_iter = std::find_if(begin_iter, end_iter,
+        [threshold](const Edge& e) { return e.timestamp >= threshold; });
+}
+
+void
+Batch::dedup_and_sort_by_out_degree()
+{
+    // Sort to prepare for deduplication
+    auto by_src_dest_time = [](const Edge& a, const Edge& b) {
+        // Order by src ascending, then dest ascending, then timestamp descending
+        // This way the edge with the most recent timestamp will be picked when deduplicating
+        return (a.src != b.src) ? a.src < b.src
+             : (a.dst != b.dst) ? a.dst < b.dst
+             :  a.timestamp > b.timestamp;
+    };
+    std::sort(begin_iter, end_iter, by_src_dest_time);
+
+    // Deduplicate the edge list
+    {
+        pvector<Edge> deduped_edges(size());
         // Using std::unique_copy since there is no parallel version of std::unique
-        auto end = std::unique_copy(sorted_edges.begin(), sorted_edges.end(), deduped_edges.begin(),
+        auto end = std::unique_copy(begin_iter, end_iter, deduped_edges.begin(),
                 // We consider only source and dest when searching for duplicates
                 // The input is sorted, so we'll only get the most recent timestamp
                 // BUG: Does not combine weights
                 [](const Edge& a, const Edge& b) { return a.src == b.src && a.dst == b.dst; });
-        deduped_edges.resize(end - deduped_edges.begin());
-
-        // Reinitialize the batch pointers
-        begin_iter = &*deduped_edges.begin();
-        end_iter = &*deduped_edges.end();
+        // Copy deduplicated edges back into this batch
+        std::transform(deduped_edges.begin(), end, begin_iter,
+            [](const Edge& e) { return e; });
     }
 
-    virtual int64_t num_vertices_affected() const
-    {
-        // Get a list of just the vertex ID's in this batch
-        pvector<int64_t> vertices(deduped_edges.size() * 2);
-        std::transform(deduped_edges.begin(), deduped_edges.end(), vertices.begin(),
-                [](const Edge& e){ return e.src; });
-        std::transform(deduped_edges.begin(), deduped_edges.end(), vertices.begin() + deduped_edges.size(),
-                [](const Edge& e){ return e.dst; });
-
-        // Deduplicate
-        pvector<int64_t> unique_vertices(vertices.size());
-        std::sort(vertices.begin(), vertices.end());
-        auto end = std::unique_copy(vertices.begin(), vertices.end(), unique_vertices.begin());
-        unique_vertices.resize(end - unique_vertices.begin());
-
-        return unique_vertices.size();
+    // Allocate an array with an entry for each vertex
+    pvector<int64_t> degrees(this->max_vertex_id()+1);
+    #pragma omp parallel for
+    for (int64_t i = 0; i < degrees.size(); ++i) {
+        degrees[i] = i;
     }
-};
 
-int64_t Batch::num_vertices_affected() const
-{
-    // We need to sort and deduplicate anyways, just use the implementation in DeduplicatedBatch
-    auto sorted = DeduplicatedBatch(*this);
-    return sorted.num_vertices_affected();
+    // Count the degree of each vertex
+    std::transform(degrees.begin(), degrees.end(), degrees.begin(),
+        [this](int64_t src) {
+            Edge key = {src, 0, 0, 0};
+            auto range = std::equal_range(begin_iter, end_iter, key,
+                [](const Edge& a, const Edge& b) {
+                    return a.src < b.src;
+                }
+            );
+            return range.second - range.first;
+        }
+    );
+
+    // Sort by degree
+    auto by_out_degree = [&degrees](const Edge& a, const Edge& b) {
+        return degrees[a.src] < degrees[b.src];
+    };
+    std::sort(begin_iter, end_iter, by_out_degree);
 }
 
 shared_ptr<IDataset>
@@ -119,21 +153,29 @@ DynoGraph::get_preprocessed_batch(int64_t batchId, IDataset &dataset, Args::SORT
     {
         case Args::SORT_MODE::UNSORTED:
         {
-            shared_ptr<Batch> batch(dataset.getBatch(batchId));
+            shared_ptr<Batch> batch = make_shared<Batch>(
+                std::move(*dataset.getBatch(batchId))
+            );
             batch->filter(threshold);
             return batch;
         }
         case Args::SORT_MODE::PRESORT:
         {
-            shared_ptr<Batch> batch(dataset.getBatch(batchId));
+            shared_ptr<Batch> batch = make_shared<ConcreteBatch>(
+                std::move(*dataset.getBatch(batchId))
+            );
             batch->filter(threshold);
-            return make_shared<DeduplicatedBatch>(*batch);
+            batch->dedup_and_sort_by_out_degree();
+            return batch;
         }
         case Args::SORT_MODE::SNAPSHOT:
         {
-            shared_ptr<Batch> cumulative_snapshot(dataset.getBatchesUpTo(batchId));
+            shared_ptr<Batch> cumulative_snapshot = make_shared<ConcreteBatch>(
+                std::move(*dataset.getBatchesUpTo(batchId))
+            );
             cumulative_snapshot->filter(threshold);
-            return make_shared<DeduplicatedBatch>(*cumulative_snapshot);
+            cumulative_snapshot->dedup_and_sort_by_out_degree();
+            return cumulative_snapshot;
         }
         default: assert(0); return nullptr;
     }

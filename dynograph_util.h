@@ -56,16 +56,35 @@ operator<<(std::ostream &os, const Edge &e) {
 // Represents a list of edges that should be inserted into the graph
 class Batch : public Range<Edge>
 {
+
 public:
     using Range<Edge>::Range;
     Batch() = default;
-    virtual int64_t num_vertices_affected() const;
-    void filter(int64_t threshold) {
-        begin_iter = std::find_if(begin_iter, end_iter,
-            [threshold](const Edge& e) { return e.timestamp >= threshold; });
-    }
+    int64_t num_vertices_affected() const;
+    int64_t max_vertex_id() const;
+    void filter(int64_t threshold);
+    void dedup_and_sort_by_out_degree();
+
     bool is_directed() const { return true; }
     virtual ~Batch() = default;
+};
+
+// Batch subclass with internal storage
+class ConcreteBatch : public Batch
+{
+protected:
+    pvector<Edge> edges;
+    ConcreteBatch(size_t n) : Batch(), edges(n) {};
+public:
+    explicit ConcreteBatch(const Batch& batch)
+    : Batch(batch)
+    // Make a copy of the original batch
+    , edges(batch.begin(), batch.end())
+    {
+        // Reinitialize the batch pointers to point to the owned copy
+        begin_iter = &*edges.begin();
+        end_iter = &*edges.end();
+    }
 };
 
 class IDataset

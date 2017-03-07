@@ -15,10 +15,8 @@ struct RmatArgs
     std::string validate() const;
 };
 
-class RmatBatch : public Batch
+class RmatBatch : public ConcreteBatch
 {
-protected:
-    pvector<Edge> edges;
 public:
     explicit RmatBatch(rmat_edge_generator& generator, int64_t size, int64_t first_timestamp);
 };
