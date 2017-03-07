@@ -1,5 +1,7 @@
 #pragma once
 
+#include <assert.h>
+
 namespace DynoGraph {
 
 // Provides access to a contiguous array of data

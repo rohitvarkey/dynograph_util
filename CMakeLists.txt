@@ -7,6 +7,7 @@ add_subdirectory(hooks)
 add_library(dynograph_util
     args.cc
     alg_data_manager.cc
+    batch.cc
     edgelist_dataset.cc
     rmat_dataset.cc
     dynograph_util.cc
@@ -28,22 +29,24 @@ if (NOT GOOGLETEST_DIR)
   add_subdirectory(googletest)
 endif()
 
-# Build the unit tests
-add_executable(dynograph_util_test dynograph_util_test.cc)
-target_include_directories(dynograph_util_test PRIVATE ${GOOGLETEST_DIR})
-target_link_libraries(dynograph_util_test dynograph_util gtest)
-
-add_executable(reference_impl_test reference_impl.cc)
-target_include_directories(reference_impl_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GOOGLETEST_DIR})
-target_link_libraries(reference_impl_test dynograph_util gtest_main)
-
-add_executable(rmat_dataset_test rmat_dataset_test.cc)
-target_include_directories(rmat_dataset_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GOOGLETEST_DIR})
-target_link_libraries(rmat_dataset_test dynograph_util gtest_main)
-
 enable_testing()
-add_test(dynograph_util_test dynograph_util_test ${CMAKE_CURRENT_SOURCE_DIR}/data/ring-of-cliques.graph.el)
-add_test(reference_impl_test dynograph_util_test)
+
+# Build the unit tests
+function(add_test_exe name)
+  add_executable(${name} ${name}.cc)
+  target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GOOGLETEST_DIR})
+  target_link_libraries(${name} dynograph_util gtest_main)
+  if (ARGC EQUAL 1)
+    add_test(${name} ${name})
+  else()
+    add_test(${name} ${name} ${ARGV1})
+  endif()
+endfunction()
+
+add_test_exe(dynograph_util_test ${CMAKE_CURRENT_SOURCE_DIR}/data/ring-of-cliques.graph.el)
+add_test_exe(reference_impl_test)
+add_test_exe(rmat_dataset_test)
+add_test_exe(batch_test)
 
 # Copy test data to the build directory
 file(
