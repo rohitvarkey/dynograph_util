@@ -33,6 +33,7 @@ operator<<(std::ostream &os, const Batch &b)
     } else {
         os << "<Batch of " << b.size() << " edges>";
     }
+    return os;
 }
 
 // Batch subclass with internal storage
