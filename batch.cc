@@ -33,8 +33,10 @@ Batch::max_vertex_id() const {
 void
 Batch::filter(int64_t threshold)
 {
-    begin_iter = std::find_if(begin_iter, end_iter,
-        [threshold](const Edge& e) { return e.timestamp >= threshold; });
+    Edge key = {0, 0, 0, threshold};
+    begin_iter = std::lower_bound(begin_iter, end_iter, key,
+        [](const Edge& a, const Edge& b) { return a.timestamp < b.timestamp; }
+    );
 }
 
 void
