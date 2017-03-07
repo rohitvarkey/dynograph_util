@@ -81,6 +81,9 @@ Batch::dedup_and_sort_by_out_degree()
         // Copy deduplicated edges back into this batch
         std::transform(deduped_edges.begin(), end, begin_iter,
             [](const Edge& e) { return e; });
+        // Adjust size
+        size_t num_deduped_edges = (end - deduped_edges.begin());
+        end_iter = begin_iter + num_deduped_edges;
     }
 
     // Allocate an array with an entry for each vertex
@@ -103,9 +106,13 @@ Batch::dedup_and_sort_by_out_degree()
         }
     );
 
-    // Sort by degree
+    // Sort by out degree descending, src then dst
     auto by_out_degree = [&degrees](const Edge& a, const Edge& b) {
-        return degrees[a.src] < degrees[b.src];
+        if (degrees[a.src] != degrees[b.src]) {
+            return degrees[a.src] > degrees[b.src];
+        } else {
+            return degrees[a.dst] > degrees[b.dst];
+        }
     };
     std::sort(begin_iter, end_iter, by_out_degree);
 }
@@ -153,9 +160,7 @@ DynoGraph::get_preprocessed_batch(int64_t batchId, IDataset &dataset, Args::SORT
     {
         case Args::SORT_MODE::UNSORTED:
         {
-            shared_ptr<Batch> batch = make_shared<Batch>(
-                std::move(*dataset.getBatch(batchId))
-            );
+            shared_ptr<Batch> batch = dataset.getBatch(batchId);
             batch->filter(threshold);
             return batch;
         }

@@ -28,17 +28,6 @@ struct Edge
 };
 
 inline bool
-operator<(const Edge& a, const Edge& b)
-{
-    // Custom sorting order to prepare for deduplication
-    // Order by src ascending, then dest ascending, then timestamp descending
-    // This way the edge with the most recent timestamp will be picked when deduplicating
-    return (a.src != b.src) ? a.src < b.src
-         : (a.dst != b.dst) ? a.dst < b.dst
-         : a.timestamp > b.timestamp;
-}
-
-inline bool
 operator==(const Edge& a, const Edge& b)
 {
     return a.src == b.src
@@ -68,6 +57,18 @@ public:
     bool is_directed() const { return true; }
     virtual ~Batch() = default;
 };
+
+inline std::ostream&
+operator<<(std::ostream &os, const Batch &b)
+{
+    if (b.size() < 20) {
+        for (const Edge& e : b) {
+            os << e << "\n";
+        }
+    } else {
+        os << "<Batch of " << b.size() << " edges>";
+    }
+}
 
 // Batch subclass with internal storage
 class ConcreteBatch : public Batch
