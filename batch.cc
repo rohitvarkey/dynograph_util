@@ -77,18 +77,23 @@ Batch::dedup_and_sort_by_out_degree()
     }
 
     // Count the degree of each vertex
-    // TODO optimize this loop
-    std::transform(degrees.begin(), degrees.end(), degrees.begin(),
-        [this](int64_t src) {
-            Edge key = {src, 0, 0, 0};
-            auto range = std::equal_range(begin_iter, end_iter, key,
-                [](const Edge& a, const Edge& b) {
-                    return a.src < b.src;
-                }
-            );
-            return range.second - range.first;
-        }
-    );
+    auto pos = begin_iter;
+    #pragma omp parallel for schedule(static) firstprivate(pos)
+    for (size_t src = 0; src < degrees.size(); ++src)
+    {
+        // Find the range of edges with src==src
+        Edge key = {src, 0, 0, 0};
+        auto range = std::equal_range(pos, end_iter, key,
+            [](const Edge& a, const Edge& b) {
+                return a.src < b.src;
+            }
+        );
+        // Calculate length of range
+        // Since there are no duplicates, this is the degree of src
+        degrees[src] = range.second - range.first;
+        // Reuse end of range as start of next search
+        pos = range.second;
+    }
 
     // Sort by out degree descending, src then dst
     auto by_out_degree = [&degrees](const Edge& a, const Edge& b) {
