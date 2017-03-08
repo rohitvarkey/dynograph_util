@@ -98,6 +98,8 @@ TEST(RmatEdgeGeneratorTest, DiscardActuallyWorks)
 
 }
 
+#if defined(_OPENMP)
+#include <omp.h>
 
 TEST(RmatDatasetTest, DeterministicParallelGeneration)
 {
@@ -141,6 +143,7 @@ TEST(RmatDatasetTest, DeterministicParallelGeneration)
         ASSERT_TRUE(batches_equal(*serial_batches[batch_id], *parallel_batches[batch_id]));
     }
 }
+#endif
 
 TEST(RmatDatasetTest, NoSelfEdges)
 {
