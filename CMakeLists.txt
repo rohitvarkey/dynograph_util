@@ -23,6 +23,10 @@ target_include_directories(dynograph_util PUBLIC hooks)
 add_executable(rmat_dataset_dump rmat_dataset_dump.cc)
 target_link_libraries(rmat_dataset_dump dynograph_util)
 
+# Build the bin_to_el utility
+add_executable(bin_to_el bin_to_el.cc)
+target_link_libraries(bin_to_el dynograph_util)
+
 # Detect if googletest was already built elsewhere
 if (NOT GOOGLETEST_DIR)
   set(GOOGLETEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/googletest/include PARENT_SCOPE)
