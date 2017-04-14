@@ -192,16 +192,34 @@ std::vector<int64_t>
 pick_sources_for_alg(std::string alg_name, graph_t &graph)
 {
     int64_t num_sources;
+    std::vector<int64_t> sources;
     if (alg_name == "sssp") { num_sources = 1; }
     else if (alg_name == "bc") { num_sources = 128; }
-    else if (alg_name == "bfs") { num_sources = 64; }
+    else if (alg_name == "bfs") {
+        std::string path = graph.args.source_path;
+        Logger &logger = Logger::get_instance();
+        logger << "Counting lines in " << path << "...\n";
+        num_sources = count_lines(path);
+
+        logger << "Preloading " << num_sources << " sources from " << path << "...\n";
+
+        sources.resize(num_sources);
+
+        FILE* fp = fopen(path.c_str(), "r");
+        int rc = 0;
+        for (int64_t* src = &sources[0]; rc != EOF; ++src)
+        {
+            rc = fscanf(fp, "%ld\n", src);
+        }
+        fclose(fp);
+        return sources;
+    }
     else { num_sources = 0; }
 
     int64_t nv = graph.get_num_vertices();
     num_sources = std::min(num_sources, nv);
 
     auto get_degree = [&graph](int64_t i){ return graph.get_out_degree(i); };
-    std::vector<int64_t> sources;
     if (num_sources > 0) {
         sources = find_high_degree_vertices(num_sources, nv, get_degree);
 
