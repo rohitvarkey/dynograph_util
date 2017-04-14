@@ -21,6 +21,8 @@ struct Args
     int64_t num_epochs;
     // File path for edge list to load
     std::string input_path;
+    // File path for sources to load
+    std::string source_path;
     // Number of edges to insert in each batch of insertions
     int64_t batch_size;
     // Algorithms to run after each epoch
@@ -190,8 +192,9 @@ std::vector<int64_t>
 pick_sources_for_alg(std::string alg_name, graph_t &graph)
 {
     int64_t num_sources;
-    if (alg_name == "bfs" || alg_name == "sssp") { num_sources = 1; }
+    if (alg_name == "sssp") { num_sources = 1; }
     else if (alg_name == "bc") { num_sources = 128; }
+    else if (alg_name == "bfs") { num_sources = 64; }
     else { num_sources = 0; }
 
     int64_t nv = graph.get_num_vertices();
