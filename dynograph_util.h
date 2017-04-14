@@ -197,19 +197,16 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
     else if (alg_name == "bc") { num_sources = 128; }
     else if (alg_name == "bfs") {
         std::string path = graph.args.source_path;
-        Logger &logger = Logger::get_instance();
-        logger << "Counting lines in " << path << "...\n";
-        num_sources = count_lines(path);
-
-        logger << "Preloading " << num_sources << " sources from " << path << "...\n";
-
+        num_sources = 64;
         sources.resize(num_sources);
 
         FILE* fp = fopen(path.c_str(), "r");
         int rc = 0;
+        printf("sources:\n");
         for (int64_t* src = &sources[0]; rc != EOF; ++src)
         {
             rc = fscanf(fp, "%ld\n", src);
+            printf("%ld \n", src);
         }
         fclose(fp);
         return sources;
