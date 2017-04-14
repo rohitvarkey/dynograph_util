@@ -206,8 +206,9 @@ pick_sources_for_alg(std::string alg_name, graph_t &graph)
         for (int64_t* src = &sources[0]; rc != EOF; ++src)
         {
             rc = fscanf(fp, "%ld\n", src);
-            printf("%ld \n", src);
+            printf("%ld ", *src);
         }
+        printf("\n");
         fclose(fp);
         return sources;
     }
