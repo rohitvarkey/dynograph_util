@@ -13,6 +13,7 @@ using std::stringstream;
 static const option long_options[] = {
     {"num-epochs" , required_argument, 0, 0},
     {"input-path" , required_argument, 0, 0},
+    {"source-path" , required_argument, 0, 0},
     {"batch-size" , required_argument, 0, 0},
     {"alg-names"  , required_argument, 0, 0},
     {"sort-mode"  , required_argument, 0, 0},
@@ -26,6 +27,7 @@ static const option long_options[] = {
 static const std::pair<string, string> option_descriptions[] = {
     {"num-epochs" , "Number of epochs (algorithm updates) in the benchmark"},
     {"input-path" , "File path to the graph edge list to load (.graph.el or .graph.bin)"},
+    {"source-path" , "File path to the list of sources"},
     {"batch-size" , "Number of edges in each batch of insertions"},
     {"alg-names"  , "Algorithms to run in each epoch"},
     {"sort-mode"  , "Controls batch pre-processing: \n"
@@ -87,7 +89,10 @@ Args::parse(int argc, char *argv[])
         } else if (option_name == "input-path") {
             args.input_path = optarg;
 
-        } else if (option_name == "batch-size") {
+        } else if (option_name == "source-path") {
+            args.source_path = optarg;
+
+	} else if (option_name == "batch-size") {
             args.batch_size = static_cast<int64_t>(std::stoll(optarg));
 
         } else if (option_name == "sort-mode") {
@@ -169,6 +174,7 @@ DynoGraph::operator <<(std::ostream& os, const Args& args)
     os  << "{"
         << "\"num_epochs\":"  << args.num_epochs << ","
         << "\"input_path\":\""  << args.input_path << "\","
+        << "\"source_path\":\""  << args.source_path<< "\","
         << "\"batch_size\":"  << args.batch_size << ","
         << "\"window_size\":" << args.window_size << ","
         << "\"num_trials\":"  << args.num_trials << ","

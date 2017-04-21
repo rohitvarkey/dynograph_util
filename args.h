@@ -13,6 +13,8 @@ struct Args
     int64_t num_epochs;
     // File path for edge list to load
     std::string input_path;
+    // File path for source list to load
+    std::string source_path;
     // Number of edges to insert in each batch of insertions
     int64_t batch_size;
     // Algorithms to run after each epoch

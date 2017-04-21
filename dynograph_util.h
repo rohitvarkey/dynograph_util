@@ -199,10 +199,29 @@ run(int argc, char **argv)
                     {
                         // Pick source vertex(s)
                         int64_t num_sources;
-                        if (alg_name == "bfs" || alg_name == "sssp") { num_sources = 1; }
+                        std::vector<int64_t> sources;
+                        if (alg_name == "sssp") { num_sources = 1; }
                         else if (alg_name == "bc") { num_sources = 128; }
                         else { num_sources = 0; }
-                        std::vector<int64_t> sources = graph.get_high_degree_vertices(num_sources);
+                        if (alg_name == "bfs") {
+                            std::string path = args.source_path;
+                            num_sources = 64;
+                            sources.resize(num_sources);
+
+                            FILE* fp = fopen(path.c_str(), "r");
+                            int rc = 0;
+                            printf("sources:\n");
+                            for (int64_t* src = &sources[0]; rc != EOF; ++src)
+                            {
+                                rc = fscanf(fp, "%ld\n", src);
+                                printf("%ld ", *src);
+                            }
+                            printf("\n");
+                            fclose(fp);
+                        }
+                        else{
+                            sources = graph.get_high_degree_vertices(num_sources);
+                        }
                         if (sources.size() == 1) {
                             hooks.set_stat("source_vertex", sources[0]);
                         }
