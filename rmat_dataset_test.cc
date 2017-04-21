@@ -106,7 +106,7 @@ TEST(RmatDatasetTest, DeterministicParallelGeneration)
     RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-25K-10K.rmat");
     int64_t num_batches = 10;
     int64_t batch_size = rmat_args.num_edges / num_batches;
-    Args args = {1, "dummy", num_batches, {}, DynoGraph::Args::SORT_MODE::UNSORTED, 1.0, 1, 1};
+    Args args = {1, "dummy", "", num_batches, {}, DynoGraph::Args::SORT_MODE::UNSORTED, 1.0, 1, 1};
 
     using std::shared_ptr;
     using std::vector;
@@ -147,7 +147,7 @@ TEST(RmatDatasetTest, DeterministicParallelGeneration)
 
 TEST(RmatDatasetTest, NoSelfEdges)
 {
-    Args args = {1, "dummy", 1000, {}, DynoGraph::Args::SORT_MODE::SNAPSHOT, 1.0, 1, 1};
+    Args args = {1, "dummy", "", 1000, {}, DynoGraph::Args::SORT_MODE::SNAPSHOT, 1.0, 1, 1};
     RmatArgs rmat_args = RmatArgs::from_string("0.55-0.20-0.10-0.15-10K-10K.rmat");
     RmatDataset dataset(args, rmat_args);
 

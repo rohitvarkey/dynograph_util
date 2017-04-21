@@ -18,7 +18,7 @@ protected:
     DynamicGraph &impl;
 public:
     ImplTest()
-    : graph({1, "dummy", 3, graph_t::get_supported_algs(), Args::SORT_MODE::UNSORTED, 1.0, 1}, 1000)
+    : graph({1, "dummy", "", 3, graph_t::get_supported_algs(), Args::SORT_MODE::UNSORTED, 1.0, 1}, 1000)
     , impl(graph)
     {
         // Initialize edge count
@@ -237,7 +237,7 @@ protected:
     DynamicGraph &ref_impl;
 public:
     CompareWithReferenceTest()
-    : args{1, "dynograph_util/data/worldcup-10K.graph.bin", 500, {}, Args::SORT_MODE::UNSORTED, 0.7, 1}
+    : args{1, "dynograph_util/data/worldcup-10K.graph.bin", "", 500, {}, Args::SORT_MODE::UNSORTED, 0.7, 1}
     , dataset(args)
     , test_graph(args, dataset.getMaxVertexId())
     , ref_graph(args, dataset.getMaxVertexId())
